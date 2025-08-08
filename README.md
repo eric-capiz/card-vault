@@ -97,4 +97,3 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Yu-Gi-Oh! Trading Card Game
 - Google Cloud Vision API for OCR capabilities
 - Material-UI for the component library
-  test
