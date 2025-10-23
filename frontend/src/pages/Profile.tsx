@@ -250,7 +250,7 @@ const Profile = () => {
 
     try {
       const response = await fetch(
-        `https://card-vault.fly.dev/api/collections/${collectionId}/download`,
+        `https://card-vault-new.fly.dev/api/collections/${collectionId}/download`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

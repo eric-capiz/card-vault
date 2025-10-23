@@ -40,13 +40,16 @@ export const processImageBatch = createAsyncThunk(
       const batchGroupId = state.upload.batchGroupId || uuidv4();
       formData.append("batchGroupId", batchGroupId);
 
-      const response = await fetch("https://card-vault.fly.dev/api/batches", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
+      const response = await fetch(
+        "https://card-vault-new.fly.dev/api/batches",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      );
 
       if (!response.ok) {
         throw new Error("Failed to process images");
@@ -73,7 +76,7 @@ export const deleteCardFromBatch = createAsyncThunk(
       }
 
       const response = await fetch(
-        `https://card-vault.fly.dev/api/batches/${batchGroupId}/cards/${cardIndex}`,
+        `https://card-vault-new.fly.dev/api/batches/${batchGroupId}/cards/${cardIndex}`,
         {
           method: "DELETE",
           headers: {

@@ -1,4 +1,4 @@
-app = 'card-vault'
+app = 'card-vault-new'
 primary_region = 'ewr'
 
 [build]

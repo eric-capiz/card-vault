@@ -42,7 +42,7 @@ export const fetchCollections = createAsyncThunk(
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(
-        "https://card-vault.fly.dev/api/collections",
+        "https://card-vault-new.fly.dev/api/collections",
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -64,7 +64,7 @@ export const deleteCollection = createAsyncThunk(
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(
-        `https://card-vault.fly.dev/api/collections/${collectionId}`,
+        `https://card-vault-new.fly.dev/api/collections/${collectionId}`,
         {
           method: "DELETE",
           headers: {
@@ -96,7 +96,7 @@ export const deleteCardFromCollection = createAsyncThunk(
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(
-        `https://card-vault.fly.dev/api/collections/${collectionId}/cards/${cardIndex}`,
+        `https://card-vault-new.fly.dev/api/collections/${collectionId}/cards/${cardIndex}`,
         {
           method: "DELETE",
           headers: {
@@ -123,7 +123,7 @@ export const updateCollection = createAsyncThunk(
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(
-        `https://card-vault.fly.dev/api/collections/${collectionId}`,
+        `https://card-vault-new.fly.dev/api/collections/${collectionId}`,
         {
           method: "PUT",
           headers: {
@@ -151,7 +151,7 @@ export const addCardsToCollection = createAsyncThunk(
       files.forEach((file) => formData.append("images", file));
 
       const response = await fetch(
-        `https://card-vault.fly.dev/api/collections/${collectionId}/cards`,
+        `https://card-vault-new.fly.dev/api/collections/${collectionId}/cards`,
         {
           method: "POST",
           headers: {
