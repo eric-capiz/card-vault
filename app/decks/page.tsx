@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import { downloadFile, type Deck, type DeckCard } from "@/lib/storage";
 import { exportYdk, parseYdk, toDeckCard } from "@/lib/ydk";
 import {
@@ -29,10 +30,10 @@ const LIMITS: Record<Section, { min: number; max: number; label: string }> = {
   side: { min: 0, max: 15, label: "Side Deck" },
 };
 
-const BAN_COLORS: Record<string, string> = {
-  Forbidden: "bg-red-500/20 text-red-300 ring-red-500/50",
-  Limited: "bg-orange-500/20 text-orange-300 ring-orange-500/50",
-  "Semi-Limited": "bg-yellow-500/20 text-yellow-300 ring-yellow-500/50",
+const BAN_STYLES: Record<string, string> = {
+  Forbidden: "bg-red-500/85 text-white",
+  Limited: "bg-orange-500/85 text-white",
+  "Semi-Limited": "bg-yellow-500/85 text-black",
 };
 
 async function hydrateDeck(row: DeckRow): Promise<Deck> {
@@ -292,7 +293,7 @@ export default function DecksPage() {
     const { min, max } = LIMITS[s];
     const ok = n >= min && n <= max;
     return (
-      <span className={`text-xs font-bold ${ok ? "text-emerald-300" : "text-amber-300"}`}>
+      <span className={`font-sans text-xs font-bold ${ok ? "text-emerald-300" : "text-amber-300"}`}>
         {n}/{max}
         {s === "main" && n < min ? ` (need ${min - n} more)` : ""}
       </span>
@@ -308,17 +309,29 @@ export default function DecksPage() {
   }
 
   if (authLoading || pageLoading) {
-    return <div className="pt-24 text-center text-sm text-slate-400">Loading your decks…</div>;
+    return (
+      <div className="pt-10" aria-hidden>
+        <div className="skeleton h-9 w-48" />
+        <div className="mt-6 grid grid-cols-4 gap-2 sm:grid-cols-8">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="skeleton aspect-[3/4.4]" />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   if (!user) return null;
 
   return (
-    <div className="pt-8">
+    <div className="pt-8 sm:pt-10">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-gold-grad text-3xl font-black sm:text-4xl">Deck Builder</h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="eyebrow">Strategy</p>
+          <h1 className="font-display mt-1 text-3xl font-bold text-paper sm:text-4xl">
+            Deck <span className="text-foil">Builder</span>
+          </h1>
+          <p className="mt-1.5 max-w-xl text-sm text-fog">
             Tournament-legal deck building with banlist checks and .ydk export for EDOPro / DuelingBook.
           </p>
         </div>
@@ -334,18 +347,11 @@ export default function DecksPage() {
               e.target.value = "";
             }}
           />
-          <button
-            onClick={() => fileRef.current?.click()}
-            disabled={importing}
-            className="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/5 disabled:opacity-50"
-          >
+          <button onClick={() => fileRef.current?.click()} disabled={importing} className="btn-ghost px-4 py-2 text-sm">
             {importing ? "Importing…" : "Import .ydk"}
           </button>
           {active && (
-            <button
-              onClick={exportActive}
-              className="rounded-lg bg-[#ffd700] px-4 py-2 text-sm font-bold text-black transition hover:bg-[#ffe44d]"
-            >
+            <button onClick={exportActive} className="btn-foil px-4 py-2 text-sm">
               Export .ydk
             </button>
           )}
@@ -353,7 +359,7 @@ export default function DecksPage() {
       </div>
 
       {error && (
-        <p className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+        <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300" role="alert">
           {error}
         </p>
       )}
@@ -365,30 +371,40 @@ export default function DecksPage() {
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && createDeck()}
           placeholder="New deck name — e.g. “Blue-Eyes 2026”"
-          className="max-w-sm flex-1 rounded-lg border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#ffd700]"
+          aria-label="New deck name"
+          className="field max-w-sm flex-1 px-3.5 py-2.5 text-sm"
         />
-        <button
-          onClick={createDeck}
-          disabled={!newName.trim()}
-          className="rounded-lg bg-[rgba(255,215,0,0.14)] px-4 py-2.5 text-sm font-bold text-[#ffd700] ring-1 ring-[rgba(255,215,0,0.3)] transition hover:bg-[rgba(255,215,0,0.22)] disabled:opacity-40"
-        >
+        <button onClick={createDeck} disabled={!newName.trim()} className="btn-value px-5 py-2.5 text-sm">
           Create Deck
         </button>
       </div>
 
       {decks.length === 0 ? (
-        <div className="mt-10 rounded-3xl border border-dashed border-[rgba(255,215,0,0.25)] bg-[#0c1327]/60 p-10 text-center">
-          <div className="text-6xl">⚔️</div>
-          <h2 className="mt-4 text-2xl font-extrabold text-white">No decks yet</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-slate-400">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="panel mt-10 border-dashed border-foil-violet/25! p-10 text-center sm:p-14"
+        >
+          <div
+            className="mx-auto grid h-16 w-16 place-items-center rounded-2xl text-foil-violet"
+            style={{ background: "rgba(167,139,250,0.1)", boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.25)" }}
+            aria-hidden
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-8 w-8">
+              <path d="M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <h2 className="font-display mt-4 text-2xl font-bold text-paper">No decks yet</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm text-fog">
             Create a deck above, then add cards from the search panel. Banlist warnings keep you
             tournament-legal, and .ydk export drops straight into EDOPro.
           </p>
-        </div>
+        </motion.div>
       ) : (
         <div className="mt-6 grid gap-6 lg:grid-cols-[240px_1fr]">
           {/* deck list */}
-          <aside className="space-y-2 lg:sticky lg:top-20 lg:self-start">
+          <aside className="space-y-2 lg:sticky lg:top-20 lg:self-start" aria-label="Decks">
             {decks.map((d) => {
               const isActive = active?.id === d.id;
               const n = d.main.length + d.extra.length + d.side.length;
@@ -396,16 +412,22 @@ export default function DecksPage() {
                 <button
                   key={d.id}
                   onClick={() => setActiveId(d.id)}
-                  className={`w-full rounded-xl border p-3 text-left transition ${
+                  aria-current={isActive ? "true" : undefined}
+                  className={`relative w-full overflow-hidden rounded-xl border p-3.5 text-left transition-all duration-200 ${
                     isActive
-                      ? "border-[rgba(255,215,0,0.45)] bg-[rgba(255,215,0,0.08)]"
-                      : "border-white/8 bg-[#0c1327]/70 hover:border-white/20"
+                      ? "border-foil-violet/40 bg-gradient-to-r from-foil-violet/12 to-foil-cyan/8"
+                      : "border-white/8 bg-ink/70 hover:border-white/20 hover:bg-panel"
                   }`}
                 >
-                  <p className={`truncate text-sm font-bold ${isActive ? "text-[#ffd700]" : "text-white"}`}>
-                    {d.name}
-                  </p>
-                  <p className="mt-0.5 text-xs text-slate-500">
+                  {isActive && (
+                    <motion.span
+                      layoutId="deck-active-bar"
+                      className="absolute inset-y-0 left-0 w-[3px]"
+                      style={{ background: "linear-gradient(180deg,#a78bfa,#67e8f9,#f9a8d4)" }}
+                    />
+                  )}
+                  <p className="truncate text-sm font-bold text-paper">{d.name}</p>
+                  <p className="mt-0.5 font-mono text-xs text-dim">
                     {d.main.length}/{d.extra.length}/{d.side.length} · {n} cards
                   </p>
                 </button>
@@ -416,14 +438,14 @@ export default function DecksPage() {
           {active && composition && (
             <div className="min-w-0">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-xl font-extrabold text-white">{active.name}</h2>
-                <div className="flex items-center gap-3 text-xs text-slate-400">
+                <h2 className="font-display text-xl font-bold text-paper">{active.name}</h2>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fog">
                   <span><b className="text-[#e8a33d]">{composition.monsters}</b> Monsters</span>
                   <span><b className="text-[#2e9e5b]">{composition.spells}</b> Spells</span>
-                  <span><b className="text-[#c0488a]">{composition.traps}</b> Traps</span>
+                  <span><b className="text-foil-pink">{composition.traps}</b> Traps</span>
                   <button
                     onClick={() => deleteDeck(active.id)}
-                    className="rounded-lg border border-red-500/30 px-2.5 py-1 font-semibold text-red-300 hover:bg-red-500/10"
+                    className="rounded-lg border border-red-500/30 px-2.5 py-1 font-semibold text-red-300 transition hover:bg-red-500/10"
                   >
                     Delete
                   </button>
@@ -431,21 +453,29 @@ export default function DecksPage() {
               </div>
 
               {/* add cards */}
-              <div className="mt-4 rounded-2xl border border-white/8 bg-black/20 p-4">
-                <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Add cards to deck
-                </p>
+              <div className="panel mt-4 p-4">
+                <p className="eyebrow mb-2.5">Add cards to deck</p>
                 <div className="flex flex-col gap-2 sm:flex-row">
-                  <div className="flex gap-1 rounded-lg bg-white/5 p-1">
+                  <div className="flex gap-1 rounded-xl bg-black/40 p-1 ring-1 ring-white/10" role="tablist" aria-label="Deck section">
                     {(Object.keys(LIMITS) as Section[]).map((s) => (
                       <button
                         key={s}
+                        role="tab"
+                        aria-selected={addSection === s}
                         onClick={() => setAddSection(s)}
-                        className={`rounded-md px-3 py-1.5 text-xs font-bold transition ${
-                          addSection === s ? "bg-[#ffd700] text-black" : "text-slate-300 hover:bg-white/5"
+                        className={`relative rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                          addSection === s ? "text-obsidian" : "text-fog hover:text-paper"
                         }`}
                       >
-                        {LIMITS[s].label.replace(" Deck", "")}
+                        {addSection === s && (
+                          <motion.span
+                            layoutId="deck-section-pill"
+                            className="absolute inset-0 rounded-lg"
+                            style={{ background: "linear-gradient(135deg,#c4b5fd,#67e8f9)" }}
+                            transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                          />
+                        )}
+                        <span className="relative">{LIMITS[s].label.replace(" Deck", "")}</span>
                       </button>
                     ))}
                   </div>
@@ -455,18 +485,16 @@ export default function DecksPage() {
                       e.preventDefault();
                       runAddSearch();
                     }}
+                    role="search"
                   >
                     <input
                       value={addQuery}
                       onChange={(e) => setAddQuery(e.target.value)}
                       placeholder="Search cards to add…"
-                      className="flex-1 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#ffd700]"
+                      aria-label="Search cards to add"
+                      className="field min-w-0 flex-1 px-3 py-2 text-sm"
                     />
-                    <button
-                      type="submit"
-                      disabled={addLoading}
-                      className="rounded-lg bg-[#ffd700] px-4 py-2 text-sm font-bold text-black hover:bg-[#ffe44d] disabled:opacity-50"
-                    >
+                    <button type="submit" disabled={addLoading} className="btn-foil px-5 py-2 text-sm">
                       {addLoading ? "…" : "Go"}
                     </button>
                   </form>
@@ -477,13 +505,14 @@ export default function DecksPage() {
                       <button
                         key={c.id}
                         onClick={() => addCard(c, addSection)}
-                        className="group relative overflow-hidden rounded-lg border border-white/10 text-left transition hover:border-[#ffd700]"
+                        className="group relative overflow-hidden rounded-lg border border-white/10 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-foil-violet/50 hover:shadow-[0_10px_28px_rgba(0,0,0,0.5)]"
                         title={`Add to ${LIMITS[addSection].label}`}
+                        aria-label={`Add ${c.name} to ${LIMITS[addSection].label}`}
                       >
                         <div className="relative aspect-[3/4.4]">
                           <Image src={imageSmall(c)} alt={c.name} fill sizes="120px" className="object-cover" loading="lazy" />
                         </div>
-                        <div className="absolute inset-x-0 bottom-0 bg-black/70 px-1.5 py-1 text-[10px] font-bold text-white opacity-0 backdrop-blur-sm transition group-hover:opacity-100">
+                        <div className="absolute inset-x-0 bottom-0 translate-y-1 bg-black/75 px-1.5 py-1 text-[10px] font-bold text-paper opacity-0 backdrop-blur-sm transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
                           + {LIMITS[addSection].label}
                         </div>
                       </button>
@@ -494,21 +523,27 @@ export default function DecksPage() {
 
               {/* sections */}
               {(Object.keys(LIMITS) as Section[]).map((s) => (
-                <div key={s} className="mt-6">
-                  <div className="mb-2 flex items-center justify-between">
-                    <h3 className="font-extrabold text-white">
+                <div key={s} className="mt-7">
+                  <div className="mb-2.5 flex items-center justify-between">
+                    <h3 className="font-display font-bold text-paper">
                       {LIMITS[s].label} {sectionStatus(s)}
                     </h3>
                   </div>
                   {active[s].length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-white/10 p-5 text-center text-xs text-slate-500">
+                    <p className="rounded-xl border border-dashed border-white/10 p-5 text-center text-xs text-dim">
                       Empty — search above and click a card to add it here.
                     </p>
                   ) : (
                     <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
                       {active[s].map((c, i) => (
-                        <div key={`${c.cardId}-${i}`} className="group relative">
-                          <div className="relative aspect-[3/4.4] overflow-hidden rounded-lg border border-white/10">
+                        <motion.div
+                          key={`${c.cardId}-${i}`}
+                          initial={{ opacity: 0, scale: 0.85 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                          className="group relative"
+                        >
+                          <div className="relative aspect-[3/4.4] overflow-hidden rounded-lg border border-white/10 transition-colors group-hover:border-foil-violet/40">
                             <Image
                               src={c.imageSmall}
                               alt={c.name}
@@ -521,7 +556,7 @@ export default function DecksPage() {
                           </div>
                           {c.banTcg && (
                             <span
-                              className={`absolute left-1 top-1 rounded px-1 py-0.5 text-[9px] font-black uppercase ring-1 ${BAN_COLORS[c.banTcg] ?? "bg-white/10 text-white"}`}
+                              className={`absolute left-1 top-1 rounded px-1 py-0.5 text-[9px] font-black uppercase ${BAN_STYLES[c.banTcg] ?? "bg-white/20 text-white"}`}
                               title={`TCG: ${c.banTcg}`}
                             >
                               {c.banTcg === "Semi-Limited" ? "Semi" : c.banTcg}
@@ -529,12 +564,13 @@ export default function DecksPage() {
                           )}
                           <button
                             onClick={() => removeCard(s, i)}
-                            className="absolute right-1 top-1 hidden rounded bg-black/80 px-1.5 py-0.5 text-[10px] font-bold text-red-300 group-hover:block"
+                            className="absolute right-1 top-1 rounded bg-black/85 px-1.5 py-0.5 text-[10px] font-bold text-red-300 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                             title={`Remove ${c.name}`}
+                            aria-label={`Remove ${c.name}`}
                           >
                             ✕
                           </button>
-                        </div>
+                        </motion.div>
                       ))}
                     </div>
                   )}
