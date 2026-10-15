@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 import * as XLSX from "xlsx";
 import CardTile from "@/components/CardTile";
 import { useAuth } from "@/components/AuthProvider";
@@ -310,17 +311,29 @@ export default function VaultPage() {
   }
 
   if (authLoading || pageLoading) {
-    return <div className="pt-24 text-center text-sm text-slate-400">Loading your vault…</div>;
+    return (
+      <div className="pt-10" aria-hidden>
+        <div className="skeleton h-9 w-48" />
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="skeleton aspect-[3/4.4]" />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   if (!user) return null;
 
   return (
-    <div className="pt-8">
+    <div className="pt-8 sm:pt-10">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-gold-grad text-3xl font-black sm:text-4xl">My Vault</h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="eyebrow">Collection</p>
+          <h1 className="font-display mt-1 text-3xl font-bold text-paper sm:text-4xl">
+            My <span className="text-foil">Vault</span>
+          </h1>
+          <p className="mt-1.5 text-sm text-fog">
             {collections.length === 0
               ? "Your cardboard kingdom starts here."
               : `${collections.length} collection${collections.length === 1 ? "" : "s"} · private to your account`}
@@ -338,38 +351,28 @@ export default function VaultPage() {
               e.target.value = "";
             }}
           />
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/5"
-          >
+          <button onClick={() => fileRef.current?.click()} className="btn-ghost px-4 py-2 text-sm">
             Import JSON
           </button>
-          <button
-            onClick={() => router.push("/search")}
-            className="rounded-lg bg-[#ffd700] px-4 py-2 text-sm font-bold text-black transition hover:bg-[#ffe44d]"
-          >
+          <button onClick={() => router.push("/search")} className="btn-foil px-4 py-2 text-sm">
             + Add Cards
           </button>
         </div>
       </div>
 
       {error && (
-        <p className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+        <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300" role="alert">
           {error}
         </p>
       )}
 
       {localCount > 0 && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[rgba(255,215,0,0.35)] bg-[rgba(255,215,0,0.07)] p-4">
-          <p className="text-sm text-slate-200">
-            <span className="font-bold text-[#ffd700]">Found {localCount} local collection{localCount === 1 ? "" : "s"}</span>{" "}
-            saved in this browser before accounts existed.
+        <div className="panel mt-4 flex flex-wrap items-center justify-between gap-3 border-foil-violet/30! p-4">
+          <p className="text-sm text-paper">
+            <span className="font-bold text-foil-violet">Found {localCount} local collection{localCount === 1 ? "" : "s"}</span>{" "}
+            <span className="text-fog">saved in this browser before accounts existed.</span>
           </p>
-          <button
-            onClick={handleImportLocal}
-            disabled={migrating}
-            className="rounded-lg bg-[#ffd700] px-4 py-2 text-sm font-bold text-black transition hover:bg-[#ffe44d] disabled:opacity-50"
-          >
+          <button onClick={handleImportLocal} disabled={migrating} className="btn-foil px-4 py-2 text-sm">
             {migrating ? "Importing…" : "Import my local cards"}
           </button>
         </div>
@@ -382,38 +385,52 @@ export default function VaultPage() {
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleCreateCollection()}
           placeholder="New collection name — e.g. “Binder 1”"
-          className="max-w-sm flex-1 rounded-lg border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#ffd700]"
+          aria-label="New collection name"
+          className="field max-w-sm flex-1 px-3.5 py-2.5 text-sm"
         />
-        <button
-          onClick={handleCreateCollection}
-          disabled={!newName.trim()}
-          className="rounded-lg bg-[rgba(255,215,0,0.14)] px-4 py-2.5 text-sm font-bold text-[#ffd700] ring-1 ring-[rgba(255,215,0,0.3)] transition hover:bg-[rgba(255,215,0,0.22)] disabled:opacity-40"
-        >
+        <button onClick={handleCreateCollection} disabled={!newName.trim()} className="btn-value px-5 py-2.5 text-sm">
           Create
         </button>
       </div>
 
       {collections.length === 0 ? (
-        <div className="mt-10 rounded-3xl border border-dashed border-[rgba(255,215,0,0.25)] bg-[#0c1327]/60 p-10 text-center">
-          <div className="text-6xl">🗝️</div>
-          <h2 className="mt-4 text-2xl font-extrabold text-white">Your vault is empty</h2>
-          <div className="mx-auto mt-4 max-w-md space-y-2 text-left text-sm text-slate-300">
-            <p><span className="font-bold text-[#ffd700]">1.</span> Create a collection above (a binder, a deck box, whatever).</p>
-            <p><span className="font-bold text-[#ffd700]">2.</span> Search the card database and tap <b>+ Vault</b> on anything you own.</p>
-            <p><span className="font-bold text-[#ffd700]">3.</span> Or scan cards with your camera on the <b>Scanner</b> page.</p>
-            <p><span className="font-bold text-[#ffd700]">4.</span> Watch your collection value grow on the <b>Dashboard</b>.</p>
-          </div>
-          <button
-            onClick={() => router.push("/search")}
-            className="mt-6 rounded-xl bg-[#ffd700] px-8 py-3 font-bold text-black transition hover:bg-[#ffe44d]"
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="panel mt-10 border-dashed border-foil-violet/25! p-10 text-center sm:p-14"
+        >
+          <div
+            className="mx-auto grid h-16 w-16 place-items-center rounded-2xl text-foil-violet"
+            style={{ background: "rgba(167,139,250,0.1)", boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.25)" }}
+            aria-hidden
           >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-8 w-8">
+              <rect x="4" y="3" width="12" height="17" rx="2" />
+              <path d="M8 3v17" strokeLinecap="round" />
+            </svg>
+          </div>
+          <h2 className="font-display mt-4 text-2xl font-bold text-paper">Your vault is empty</h2>
+          <div className="mx-auto mt-4 max-w-md space-y-2.5 text-left text-sm text-fog">
+            {[
+              "Create a collection above (a binder, a deck box, whatever).",
+              "Search the card database and tap + Vault on anything you own.",
+              "Or scan cards with your camera on the Scanner page.",
+              "Watch your collection value grow on the Dashboard.",
+            ].map((t, i) => (
+              <p key={i} className="flex gap-2.5">
+                <span className="font-display font-bold text-foil-violet">{i + 1}.</span> {t}
+              </p>
+            ))}
+          </div>
+          <button onClick={() => router.push("/search")} className="btn-foil mt-7 px-8 py-3 text-sm">
             Find Cards
           </button>
-        </div>
+        </motion.div>
       ) : (
         <div className="mt-6 grid gap-6 lg:grid-cols-[260px_1fr]">
           {/* collection list */}
-          <aside className="space-y-2 lg:sticky lg:top-20 lg:self-start">
+          <aside className="space-y-2 lg:sticky lg:top-20 lg:self-start" aria-label="Collections">
             {collections.map((c) => {
               const isActive = active?.id === c.id;
               const units = c.cards.reduce((n, x) => n + x.qty, 0);
@@ -421,16 +438,24 @@ export default function VaultPage() {
                 <button
                   key={c.id}
                   onClick={() => setActiveId(c.id)}
-                  className={`w-full rounded-xl border p-3 text-left transition ${
+                  aria-current={isActive ? "true" : undefined}
+                  className={`relative w-full overflow-hidden rounded-xl border p-3.5 text-left transition-all duration-200 ${
                     isActive
-                      ? "border-[rgba(255,215,0,0.45)] bg-[rgba(255,215,0,0.08)]"
-                      : "border-white/8 bg-[#0c1327]/70 hover:border-white/20"
+                      ? "border-foil-violet/40 bg-gradient-to-r from-foil-violet/12 to-foil-cyan/8"
+                      : "border-white/8 bg-ink/70 hover:border-white/20 hover:bg-panel"
                   }`}
                 >
-                  <p className={`truncate text-sm font-bold ${isActive ? "text-[#ffd700]" : "text-white"}`}>
+                  {isActive && (
+                    <motion.span
+                      layoutId="vault-active-bar"
+                      className="absolute inset-y-0 left-0 w-[3px]"
+                      style={{ background: "linear-gradient(180deg,#a78bfa,#67e8f9,#f9a8d4)" }}
+                    />
+                  )}
+                  <p className={`truncate text-sm font-bold ${isActive ? "text-paper" : "text-paper/85"}`}>
                     {c.title}
                   </p>
-                  <p className="mt-0.5 text-xs text-slate-500">
+                  <p className="mt-0.5 text-xs text-dim">
                     {c.cards.length} unique · {units} cards
                   </p>
                 </button>
@@ -440,9 +465,9 @@ export default function VaultPage() {
 
           {/* active collection */}
           {active && (
-            <div>
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[rgba(255,215,0,0.14)] bg-[#0c1327]/80 p-4">
-                <div className="flex min-w-0 items-center gap-2">
+            <div className="min-w-0">
+              <div className="panel flex flex-wrap items-center justify-between gap-3 p-4">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
                   {renaming ? (
                     <input
                       autoFocus
@@ -453,11 +478,12 @@ export default function VaultPage() {
                         if (e.key === "Escape") setRenaming(false);
                       }}
                       onBlur={handleRename}
-                      className="rounded-lg border border-[#ffd700] bg-black/40 px-2 py-1 text-lg font-extrabold text-white outline-none"
+                      aria-label="Collection name"
+                      className="field w-full max-w-xs px-2.5 py-1.5 font-display text-lg font-bold"
                     />
                   ) : (
                     <h2
-                      className="cursor-pointer truncate text-xl font-extrabold text-white hover:text-[#ffd700]"
+                      className="font-display cursor-pointer truncate text-xl font-bold text-paper transition-colors hover:text-foil-violet"
                       title="Click to rename"
                       onClick={() => {
                         setRenameValue(active.title);
@@ -468,33 +494,21 @@ export default function VaultPage() {
                     </h2>
                   )}
                 </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="rounded-lg bg-white/5 px-2.5 py-1 font-semibold text-slate-300">
-                    {totals.unique} unique
-                  </span>
-                  <span className="rounded-lg bg-white/5 px-2.5 py-1 font-semibold text-slate-300">
-                    {totals.units} cards
-                  </span>
-                  <span className="rounded-lg bg-[rgba(255,215,0,0.12)] px-2.5 py-1 font-extrabold text-[#ffd700]">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="chip">{totals.unique} unique</span>
+                  <span className="chip">{totals.units} cards</span>
+                  <span className="chip border-value/30! bg-value/10! text-value! font-extrabold">
                     {formatMoney(totals.value)}
                   </span>
-                  <button
-                    onClick={exportXlsx}
-                    className="rounded-lg border border-white/15 px-2.5 py-1 font-semibold text-slate-200 hover:bg-white/5"
-                    title="Export to Excel"
-                  >
+                  <button onClick={exportXlsx} className="btn-ghost px-2.5 py-1.5" title="Export to Excel">
                     XLSX
                   </button>
-                  <button
-                    onClick={exportJson}
-                    className="rounded-lg border border-white/15 px-2.5 py-1 font-semibold text-slate-200 hover:bg-white/5"
-                    title="Export to JSON"
-                  >
+                  <button onClick={exportJson} className="btn-ghost px-2.5 py-1.5" title="Export to JSON">
                     JSON
                   </button>
                   <button
                     onClick={() => handleDeleteCollection(active.id)}
-                    className="rounded-lg border border-red-500/30 px-2.5 py-1 font-semibold text-red-300 hover:bg-red-500/10"
+                    className="rounded-lg border border-red-500/30 px-2.5 py-1.5 font-semibold text-red-300 transition hover:bg-red-500/10"
                     title="Delete collection"
                   >
                     Delete
@@ -504,17 +518,19 @@ export default function VaultPage() {
 
               {/* sort / filter */}
               {active.cards.length > 0 && (
-                <div className="mt-4 grid gap-2 rounded-2xl border border-white/8 bg-black/20 p-3 sm:grid-cols-2 lg:grid-cols-5">
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                   <input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Filter by name…"
-                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#ffd700]"
+                    aria-label="Filter by name"
+                    className="field col-span-2 px-3 py-2 text-sm sm:col-span-1"
                   />
                   <select
                     value={typeFilter}
                     onChange={(e) => setTypeFilter(e.target.value)}
-                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[#ffd700]"
+                    aria-label="Filter by type"
+                    className="field px-3 py-2 text-sm"
                   >
                     <option value="">All types</option>
                     {typeOptions.map((t) => (
@@ -524,7 +540,8 @@ export default function VaultPage() {
                   <select
                     value={attrFilter}
                     onChange={(e) => setAttrFilter(e.target.value)}
-                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[#ffd700]"
+                    aria-label="Filter by attribute"
+                    className="field px-3 py-2 text-sm"
                   >
                     <option value="">All attributes</option>
                     {attrOptions.map((a) => (
@@ -534,7 +551,8 @@ export default function VaultPage() {
                   <select
                     value={sortKey}
                     onChange={(e) => setSortKey(e.target.value as SortKey)}
-                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[#ffd700]"
+                    aria-label="Sort by"
+                    className="field px-3 py-2 text-sm"
                   >
                     <option value="name">Sort: Name</option>
                     <option value="price">Sort: Value</option>
@@ -543,7 +561,8 @@ export default function VaultPage() {
                   </select>
                   <button
                     onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}
-                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm font-bold text-slate-200 hover:border-[#ffd700]"
+                    className="field px-3 py-2 text-sm font-bold text-fog transition hover:text-paper"
+                    aria-label="Toggle sort direction"
                   >
                     {sortDir === "asc" ? "↑ Ascending" : "↓ Descending"}
                   </button>
@@ -551,15 +570,12 @@ export default function VaultPage() {
               )}
 
               {visibleCards.length === 0 ? (
-                <div className="mt-8 rounded-2xl border border-dashed border-white/10 p-10 text-center text-sm text-slate-400">
+                <div className="panel mt-6 border-dashed p-10 text-center text-sm text-fog">
                   {active.cards.length === 0 ? (
                     <>
-                      <p className="text-base font-bold text-white">Nothing in here yet</p>
+                      <p className="font-display text-base font-bold text-paper">Nothing in here yet</p>
                       <p className="mt-1">Search the database or scan cards to start filling this collection.</p>
-                      <button
-                        onClick={() => router.push("/search")}
-                        className="mt-4 rounded-lg bg-[#ffd700] px-6 py-2.5 font-bold text-black hover:bg-[#ffe44d]"
-                      >
+                      <button onClick={() => router.push("/search")} className="btn-foil mt-4 px-6 py-2.5 text-sm">
                         Search Cards
                       </button>
                     </>
@@ -568,45 +584,48 @@ export default function VaultPage() {
                   )}
                 </div>
               ) : (
-                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-4">
-                  {visibleCards.map((c) => (
-                    <CardTile
-                      key={c.id}
-                      imageSmall={c.imageSmall}
-                      name={c.name}
-                      type={c.type}
-                      price={c.price * c.qty}
-                      qty={c.qty}
-                      badge={c.rarity ?? undefined}
-                      onClick={() => router.push(`/card/${c.ygoId}`)}
-                      action={
-                        <div className="flex items-center justify-between gap-1">
-                          <div className="flex items-center gap-1">
+                <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-4">
+                  <AnimatePresence>
+                    {visibleCards.map((c, i) => (
+                      <CardTile
+                        key={c.id}
+                        index={i}
+                        imageSmall={c.imageSmall}
+                        name={c.name}
+                        type={c.type}
+                        price={c.price * c.qty}
+                        qty={c.qty}
+                        badge={c.rarity ?? undefined}
+                        onClick={() => router.push(`/card/${c.ygoId}`)}
+                        action={
+                          <div className="flex items-center justify-between gap-1">
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleChangeQty(c, -1)}
+                                className="btn-ghost grid h-7 w-7 place-items-center rounded-md! font-bold"
+                                aria-label={`Decrease quantity of ${c.name}`}
+                              >
+                                −
+                              </button>
+                              <button
+                                onClick={() => handleChangeQty(c, 1)}
+                                className="btn-ghost grid h-7 w-7 place-items-center rounded-md! font-bold"
+                                aria-label={`Increase quantity of ${c.name}`}
+                              >
+                                +
+                              </button>
+                            </div>
                             <button
-                              onClick={() => handleChangeQty(c, -1)}
-                              className="grid h-7 w-7 place-items-center rounded-md bg-white/5 font-bold text-white hover:bg-white/10"
-                              aria-label="Decrease quantity"
+                              onClick={() => handleRemoveCard(c.id)}
+                              className="rounded-md px-2 py-1 text-xs font-semibold text-red-300/80 transition hover:bg-red-500/10 hover:text-red-300"
                             >
-                              −
-                            </button>
-                            <button
-                              onClick={() => handleChangeQty(c, 1)}
-                              className="grid h-7 w-7 place-items-center rounded-md bg-white/5 font-bold text-white hover:bg-white/10"
-                              aria-label="Increase quantity"
-                            >
-                              +
+                              Remove
                             </button>
                           </div>
-                          <button
-                            onClick={() => handleRemoveCard(c.id)}
-                            className="rounded-md px-2 py-1 text-xs font-semibold text-red-300 hover:bg-red-500/10"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      }
-                    />
-                  ))}
+                        }
+                      />
+                    ))}
+                  </AnimatePresence>
                 </div>
               )}
             </div>
