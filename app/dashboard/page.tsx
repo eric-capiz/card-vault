@@ -1,14 +1,41 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import CardTile from "@/components/CardTile";
-import { loadCollections } from "@/lib/storage";
+import { useAuth } from "@/components/AuthProvider";
+import { getSupabaseBrowser } from "@/lib/supabaseClient";
+import { getCollections, type CollectionWithCards } from "@/lib/db";
 import { formatMoney } from "@/lib/ygoprodeck";
+import { NotConfiguredNotice } from "@/app/login/LoginForm";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [collections] = useState(() => loadCollections());
+  const { user, loading: authLoading, configured } = useAuth();
+  const [collections, setCollections] = useState<CollectionWithCards[]>([]);
+  const [pageLoading, setPageLoading] = useState(true);
+
+  useEffect(() => {
+    if (configured && !authLoading && !user) {
+      router.replace("/login?next=/dashboard");
+    }
+  }, [configured, authLoading, user, router]);
+
+  useEffect(() => {
+    if (!configured || authLoading || !user) {
+      if (configured && !authLoading) setPageLoading(false);
+      return;
+    }
+    const client = getSupabaseBrowser();
+    if (!client) {
+      setPageLoading(false);
+      return;
+    }
+    getCollections(client)
+      .then(setCollections)
+      .catch(() => setCollections([]))
+      .finally(() => setPageLoading(false));
+  }, [configured, authLoading, user]);
 
   const stats = useMemo(() => {
     const all = collections.flatMap((c) => c.cards);
@@ -34,6 +61,20 @@ export default function DashboardPage() {
 
     return { units, unique: all.length, value, mostValuable, topArchetypes, rarityBreakdown, maxRarity };
   }, [collections]);
+
+  if (!configured) {
+    return (
+      <div className="mx-auto max-w-md pt-16">
+        <NotConfiguredNotice />
+      </div>
+    );
+  }
+
+  if (authLoading || pageLoading) {
+    return <div className="pt-24 text-center text-sm text-slate-400">Loading your stats…</div>;
+  }
+
+  if (!user) return null;
 
   if (collections.length === 0) {
     return (
@@ -140,7 +181,7 @@ export default function DashboardPage() {
       </h2>
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5">
         {stats.mostValuable.map((c, i) => (
-          <div key={`${c.cardId}-${c.setCode ?? ""}-${i}`} className="relative">
+          <div key={`${c.id}-${i}`} className="relative">
             {i < 3 && (
               <span className="absolute -top-2 left-2 z-10 rounded-md bg-[#ffd700] px-2 py-0.5 text-xs font-black text-black shadow-lg">
                 #{i + 1}
@@ -152,8 +193,8 @@ export default function DashboardPage() {
               type={c.type}
               price={c.price * c.qty}
               qty={c.qty}
-              badge={c.rarity}
-              onClick={() => router.push(`/card/${c.cardId}`)}
+              badge={c.rarity ?? undefined}
+              onClick={() => router.push(`/card/${c.ygoId}`)}
             />
           </div>
         ))}
@@ -162,7 +203,7 @@ export default function DashboardPage() {
   );
 }
 
-function CompositionStats({ collections }: { collections: ReturnType<typeof loadCollections> }) {
+function CompositionStats({ collections }: { collections: CollectionWithCards[] }) {
   const comp = useMemo(() => {
     const all = collections.flatMap((c) => c.cards);
     let monsters = 0,

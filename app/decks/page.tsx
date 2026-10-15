@@ -1,15 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import {
-  downloadFile,
-  loadDecks,
-  saveDecks,
-  uid,
-  type Deck,
-  type DeckCard,
-} from "@/lib/storage";
+import { useRouter } from "next/navigation";
+import { downloadFile, type Deck, type DeckCard } from "@/lib/storage";
 import { exportYdk, parseYdk, toDeckCard } from "@/lib/ydk";
 import {
   getCardsByIds,
@@ -18,6 +12,15 @@ import {
   searchCards,
   type YGOCard,
 } from "@/lib/ygoprodeck";
+import { useAuth } from "@/components/AuthProvider";
+import { getSupabaseBrowser } from "@/lib/supabaseClient";
+import {
+  deleteDeck as dbDeleteDeck,
+  getDecks,
+  saveDeck as dbSaveDeck,
+  type DeckRow,
+} from "@/lib/db";
+import { NotConfiguredNotice } from "@/app/login/LoginForm";
 
 type Section = "main" | "extra" | "side";
 const LIMITS: Record<Section, { min: number; max: number; label: string }> = {
@@ -26,18 +29,46 @@ const LIMITS: Record<Section, { min: number; max: number; label: string }> = {
   side: { min: 0, max: 15, label: "Side Deck" },
 };
 
-function blankDeck(name: string): Deck {
-  return { id: uid(), name, main: [], extra: [], side: [], updatedAt: Date.now() };
-}
-
 const BAN_COLORS: Record<string, string> = {
   Forbidden: "bg-red-500/20 text-red-300 ring-red-500/50",
   Limited: "bg-orange-500/20 text-orange-300 ring-orange-500/50",
   "Semi-Limited": "bg-yellow-500/20 text-yellow-300 ring-yellow-500/50",
 };
 
+async function hydrateDeck(row: DeckRow): Promise<Deck> {
+  const allIds = [...row.main, ...row.extra, ...row.side];
+  const byId = new Map<number, DeckCard>();
+  if (allIds.length > 0) {
+    const cards = await getCardsByIds(allIds);
+    for (const c of cards) byId.set(c.id, toDeckCard(c));
+  }
+  const pick = (ids: number[]): DeckCard[] =>
+    ids.map(
+      (id) =>
+        byId.get(id) ?? {
+          cardId: id,
+          name: `Unknown card (${id})`,
+          type: "",
+          frameType: "",
+          imageSmall: "",
+        }
+    );
+  return {
+    id: row.id,
+    name: row.name,
+    main: pick(row.main),
+    extra: pick(row.extra),
+    side: pick(row.side),
+    updatedAt: Date.now(),
+  };
+}
+
 export default function DecksPage() {
-  const [decks, setDecks] = useState<Deck[]>(() => loadDecks());
+  const router = useRouter();
+  const { user, loading: authLoading, configured } = useAuth();
+  const [decks, setDecks] = useState<Deck[]>([]);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [error, setError] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [addQuery, setAddQuery] = useState("");
@@ -47,35 +78,95 @@ export default function DecksPage() {
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const persist = (next: Deck[]) => {
-    setDecks(next);
-    saveDecks(next);
-  };
+  useEffect(() => {
+    if (configured && !authLoading && !user) {
+      router.replace("/login?next=/decks");
+    }
+  }, [configured, authLoading, user, router]);
+
+  useEffect(() => {
+    if (!configured || authLoading || !user) {
+      if (configured && !authLoading) setPageLoading(false);
+      return;
+    }
+    const client = getSupabaseBrowser();
+    if (!client) {
+      setPageLoading(false);
+      return;
+    }
+    (async () => {
+      try {
+        const rows = await getDecks(client);
+        setDecks(await Promise.all(rows.map(hydrateDeck)));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't load decks.");
+      } finally {
+        setPageLoading(false);
+      }
+    })();
+  }, [configured, authLoading, user]);
 
   const active: Deck | null = useMemo(
     () => decks.find((d) => d.id === activeId) ?? decks[0] ?? null,
     [decks, activeId]
   );
 
+  /** Persist one deck's id arrays to Supabase; keeps local state in sync. */
+  const persistDeck = async (deck: Deck): Promise<Deck> => {
+    const client = getSupabaseBrowser();
+    if (!client) throw new Error("Not connected.");
+    const saved = await dbSaveDeck(client, {
+      id: deck.id,
+      name: deck.name,
+      main: deck.main.map((c) => c.cardId),
+      extra: deck.extra.map((c) => c.cardId),
+      side: deck.side.map((c) => c.cardId),
+    });
+    const next: Deck = { ...deck, id: saved.id, updatedAt: Date.now() };
+    setDecks((prev) => {
+      const exists = prev.some((d) => d.id === deck.id);
+      const mapped = prev.map((d) => (d.id === deck.id ? next : d));
+      return exists ? mapped : [next, ...prev];
+    });
+    return next;
+  };
+
   const updateActive = (fn: (d: Deck) => Deck) => {
     if (!active) return;
-    persist(decks.map((d) => (d.id === active.id ? { ...fn(d), updatedAt: Date.now() } : d)));
+    const next = fn(active);
+    setDecks((prev) => prev.map((d) => (d.id === active.id ? next : d)));
+    persistDeck(next).catch((e) =>
+      setError(e instanceof Error ? e.message : "Couldn't save deck.")
+    );
   };
 
-  const createDeck = () => {
+  const createDeck = async () => {
     const name = newName.trim();
     if (!name) return;
-    const d = blankDeck(name);
-    const next = [d, ...decks];
-    persist(next);
-    setActiveId(d.id);
+    const client = getSupabaseBrowser();
+    if (!client) return;
     setNewName("");
+    try {
+      const saved = await dbSaveDeck(client, { name, main: [], extra: [], side: [] });
+      const d: Deck = { id: saved.id, name, main: [], extra: [], side: [], updatedAt: Date.now() };
+      setDecks((prev) => [d, ...prev]);
+      setActiveId(d.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't create deck.");
+    }
   };
 
-  const deleteDeck = (id: string) => {
+  const deleteDeck = async (id: string) => {
     if (!window.confirm("Delete this deck?")) return;
-    persist(decks.filter((d) => d.id !== id));
-    if (activeId === id) setActiveId(null);
+    const client = getSupabaseBrowser();
+    if (!client) return;
+    try {
+      await dbDeleteDeck(client, id);
+      setDecks((prev) => prev.filter((d) => d.id !== id));
+      if (activeId === id) setActiveId(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't delete deck.");
+    }
   };
 
   const copiesInDeck = (deck: Deck, cardId: number): number =>
@@ -135,6 +226,8 @@ export default function DecksPage() {
   };
 
   const importYdkFile = async (file: File) => {
+    const client = getSupabaseBrowser();
+    if (!client) return;
     setImporting(true);
     try {
       const text = await file.text();
@@ -144,20 +237,28 @@ export default function DecksPage() {
       const cards = await getCardsByIds(allIds);
       const byId = new Map(cards.map((c) => [c.id, c]));
       const name = file.name.replace(/\.ydk$/i, "") || "Imported Deck";
-      const d = blankDeck(name);
-      const push = (ids: number[], section: Section) => {
+      const push = (ids: number[]): DeckCard[] => {
+        const out: DeckCard[] = [];
         for (const id of ids) {
           const c = byId.get(id);
-          if (!c) continue;
-          d[section].push(toDeckCard(c));
+          if (c) out.push(toDeckCard(c));
         }
+        return out;
       };
-      push(parsed.main.slice(0, 60), "main");
-      push(parsed.extra.slice(0, 15), "extra");
-      push(parsed.side.slice(0, 15), "side");
-      const missing = allIds.length - (d.main.length + d.extra.length + d.side.length);
-      const next = [d, ...decks];
-      persist(next);
+      const mainIds = parsed.main.slice(0, 60);
+      const extraIds = parsed.extra.slice(0, 15);
+      const sideIds = parsed.side.slice(0, 15);
+      const saved = await dbSaveDeck(client, { name, main: mainIds, extra: extraIds, side: sideIds });
+      const missing = allIds.length - (mainIds.length + extraIds.length + sideIds.length);
+      const d: Deck = {
+        id: saved.id,
+        name,
+        main: push(mainIds),
+        extra: push(extraIds),
+        side: push(sideIds),
+        updatedAt: Date.now(),
+      };
+      setDecks((prev) => [d, ...prev]);
       setActiveId(d.id);
       window.alert(
         missing > 0
@@ -198,6 +299,20 @@ export default function DecksPage() {
     );
   };
 
+  if (!configured) {
+    return (
+      <div className="mx-auto max-w-md pt-16">
+        <NotConfiguredNotice />
+      </div>
+    );
+  }
+
+  if (authLoading || pageLoading) {
+    return <div className="pt-24 text-center text-sm text-slate-400">Loading your decks…</div>;
+  }
+
+  if (!user) return null;
+
   return (
     <div className="pt-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -236,6 +351,12 @@ export default function DecksPage() {
           )}
         </div>
       </div>
+
+      {error && (
+        <p className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {error}
+        </p>
+      )}
 
       {/* new deck */}
       <div className="mt-6 flex gap-2">

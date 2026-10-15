@@ -1,5 +1,7 @@
-// localStorage persistence — no accounts, no backend, $0 to run.
-// Tradeoff: data lives in this browser only. Use JSON export for backups / moving devices.
+// Legacy localStorage helpers.
+// The vault, decks and dashboard now live in Supabase per user. This module
+// remains for two jobs: reading pre-account local data for the one-click
+// migration, and the downloadFile helper used by XLSX/JSON/.ydk exports.
 
 export interface VaultCard {
   cardId: number;
@@ -47,10 +49,6 @@ export interface Deck {
 const COLLECTIONS_KEY = "cardvault.collections.v1";
 const DECKS_KEY = "cardvault.decks.v1";
 
-export function uid(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
 function read<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
@@ -62,31 +60,27 @@ function read<T>(key: string, fallback: T): T {
   }
 }
 
-function write(key: string, value: unknown): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // storage full / private mode — fail silently, data just won't persist
-  }
-}
-
+/** Pre-account local collections (used by the migration banner). */
 export function loadCollections(): Collection[] {
   const c = read<Collection[]>(COLLECTIONS_KEY, []);
   return Array.isArray(c) ? c : [];
 }
 
-export function saveCollections(collections: Collection[]): void {
-  write(COLLECTIONS_KEY, collections);
-}
-
+/** Pre-account local decks. */
 export function loadDecks(): Deck[] {
   const d = read<Deck[]>(DECKS_KEY, []);
   return Array.isArray(d) ? d : [];
 }
 
-export function saveDecks(decks: Deck[]): void {
-  write(DECKS_KEY, decks);
+/** Wipes the pre-account local data after a successful migration. */
+export function clearLocalVaultData(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(COLLECTIONS_KEY);
+    window.localStorage.removeItem(DECKS_KEY);
+  } catch {
+    // ignore
+  }
 }
 
 export function downloadFile(filename: string, content: string | Blob, mime = "text/plain"): void {

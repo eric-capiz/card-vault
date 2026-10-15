@@ -1,18 +1,31 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import * as XLSX from "xlsx";
 import CardTile from "@/components/CardTile";
+import { useAuth } from "@/components/AuthProvider";
+import { getSupabaseBrowser } from "@/lib/supabaseClient";
 import {
+  addCard,
+  createCollection as dbCreateCollection,
+  deleteCollection as dbDeleteCollection,
+  getCollections,
+  removeCard as dbRemoveCard,
+  renameCollection as dbRenameCollection,
+  updateCardQty as dbUpdateCardQty,
+  type CollectionWithCards,
+  type NewVaultCard,
+  type VaultCardRow,
+} from "@/lib/db";
+import {
+  clearLocalVaultData,
   downloadFile,
-  loadCollections,
-  saveCollections,
-  uid,
-  type Collection,
-  type VaultCard,
+  loadCollections as loadLocalCollections,
+  type Collection as LocalCollection,
 } from "@/lib/storage";
 import { formatMoney } from "@/lib/ygoprodeck";
+import { NotConfiguredNotice } from "@/app/login/LoginForm";
 
 type SortKey = "name" | "price" | "qty" | "rarity";
 
@@ -29,15 +42,38 @@ const RARITY_ORDER = [
   "Common",
 ];
 
-function rarityRank(r?: string): number {
+function rarityRank(r?: string | null): number {
   if (!r) return 999;
   const i = RARITY_ORDER.findIndex((x) => r.includes(x));
   return i === -1 ? 500 : i;
 }
 
+function localCardToNew(c: LocalCollection["cards"][number]): NewVaultCard {
+  return {
+    ygoId: c.cardId,
+    name: c.name,
+    qty: c.qty,
+    setCode: c.setCode ?? null,
+    rarity: c.rarity ?? null,
+    price: c.price,
+    imageSmall: c.imageSmall,
+    meta: {
+      type: c.type,
+      frameType: c.frameType,
+      attribute: c.attribute,
+      race: c.race,
+      archetype: c.archetype,
+      setName: c.setName,
+    },
+  };
+}
+
 export default function VaultPage() {
   const router = useRouter();
-  const [collections, setCollections] = useState<Collection[]>(() => loadCollections());
+  const { user, loading: authLoading, configured } = useAuth();
+  const [collections, setCollections] = useState<CollectionWithCards[]>([]);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [error, setError] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [renaming, setRenaming] = useState(false);
@@ -47,81 +83,128 @@ export default function VaultPage() {
   const [typeFilter, setTypeFilter] = useState("");
   const [attrFilter, setAttrFilter] = useState("");
   const [query, setQuery] = useState("");
+  const [migrating, setMigrating] = useState(false);
+  const [localCount, setLocalCount] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const persist = (next: Collection[]) => {
-    setCollections(next);
-    saveCollections(next);
+  // Redirect logged-out users (middleware also guards this route server-side).
+  useEffect(() => {
+    if (configured && !authLoading && !user) {
+      router.replace("/login?next=/vault");
+    }
+  }, [configured, authLoading, user, router]);
+
+  const refresh = async () => {
+    const client = getSupabaseBrowser();
+    if (!client) return;
+    try {
+      const data = await getCollections(client);
+      setCollections(data);
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't load your vault.");
+    } finally {
+      setPageLoading(false);
+    }
   };
 
-  const active: Collection | null = useMemo(
+  useEffect(() => {
+    if (!configured || authLoading || !user) {
+      if (configured && !authLoading) setPageLoading(false);
+      return;
+    }
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configured, authLoading, user]);
+
+  // Detect pre-auth localStorage vault data for the one-click migration.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setLocalCount(loadLocalCollections().length);
+  }, []);
+
+  const active: CollectionWithCards | null = useMemo(
     () => collections.find((c) => c.id === activeId) ?? collections[0] ?? null,
     [collections, activeId]
   );
 
-  const createCollection = () => {
+  const mutate = async (fn: () => Promise<void>) => {
+    setError("");
+    try {
+      await fn();
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong.");
+    }
+  };
+
+  const handleCreateCollection = () => {
     const name = newName.trim();
     if (!name) return;
-    const c: Collection = { id: uid(), name, description: "", cards: [], createdAt: Date.now() };
-    const next = [c, ...collections];
-    persist(next);
-    setActiveId(c.id);
+    const client = getSupabaseBrowser();
+    if (!client) return;
     setNewName("");
+    mutate(async () => {
+      const created = await dbCreateCollection(client, name);
+      setCollections((prev) => [created, ...prev]);
+      setActiveId(created.id);
+    });
   };
 
-  const deleteCollection = (id: string) => {
+  const handleDeleteCollection = (id: string) => {
     if (!window.confirm("Delete this collection and all its cards? This can't be undone.")) return;
-    persist(collections.filter((c) => c.id !== id));
+    const client = getSupabaseBrowser();
+    if (!client) return;
     if (activeId === id) setActiveId(null);
+    mutate(() => dbDeleteCollection(client, id));
   };
 
-  const renameCollection = () => {
+  const handleRename = () => {
     if (!active || !renameValue.trim()) {
       setRenaming(false);
       return;
     }
-    persist(collections.map((c) => (c.id === active.id ? { ...c, name: renameValue.trim() } : c)));
+    const client = getSupabaseBrowser();
+    if (!client) return;
+    const title = renameValue.trim();
     setRenaming(false);
+    mutate(() => dbRenameCollection(client, active.id, title));
   };
 
-  const removeCard = (cardId: number, setCode?: string, rarity?: string) => {
-    if (!active) return;
+  const handleRemoveCard = (rowId: string) => {
     if (!window.confirm("Remove this card from the collection?")) return;
-    persist(
-      collections.map((c) =>
-        c.id === active.id
-          ? {
-              ...c,
-              cards: c.cards.filter(
-                (vc) =>
-                  !(
-                    vc.cardId === cardId &&
-                    (vc.setCode ?? "") === (setCode ?? "") &&
-                    (vc.rarity ?? "") === (rarity ?? "")
-                  )
-              ),
-            }
-          : c
-      )
-    );
+    const client = getSupabaseBrowser();
+    if (!client) return;
+    mutate(() => dbRemoveCard(client, rowId));
   };
 
-  const changeQty = (vc: VaultCard, delta: number) => {
-    if (!active) return;
-    const nextQty = vc.qty + delta;
-    persist(
-      collections.map((c) =>
-        c.id === active.id
-          ? {
-              ...c,
-              cards:
-                nextQty <= 0
-                  ? c.cards.filter((x) => x !== vc)
-                  : c.cards.map((x) => (x === vc ? { ...x, qty: nextQty } : x)),
-            }
-          : c
-      )
-    );
+  const handleChangeQty = (row: VaultCardRow, delta: number) => {
+    const client = getSupabaseBrowser();
+    if (!client) return;
+    mutate(() => dbUpdateCardQty(client, row.id, row.qty + delta));
+  };
+
+  const handleImportLocal = async () => {
+    const client = getSupabaseBrowser();
+    if (!client) return;
+    setMigrating(true);
+    setError("");
+    try {
+      const local = loadLocalCollections();
+      for (const lc of local) {
+        const created = await dbCreateCollection(client, lc.name, lc.description ?? "");
+        for (const c of lc.cards) {
+          await addCard(client, created.id, localCardToNew(c));
+        }
+      }
+      clearLocalVaultData();
+      setLocalCount(0);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Import failed.");
+    } finally {
+      setMigrating(false);
+    }
   };
 
   const typeOptions = useMemo(
@@ -129,7 +212,8 @@ export default function VaultPage() {
     [active]
   );
   const attrOptions = useMemo(
-    () => [...new Set((active?.cards ?? []).map((c) => c.attribute).filter(Boolean) as string[])].sort(),
+    () =>
+      [...new Set((active?.cards ?? []).map((c) => c.attribute).filter(Boolean) as string[])].sort(),
     [active]
   );
 
@@ -181,7 +265,7 @@ export default function VaultPage() {
     XLSX.utils.book_append_sheet(wb, ws, "Collection");
     const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     downloadFile(
-      `${active.name.replace(/[^a-z0-9-_]+/gi, "_")}.xlsx`,
+      `${active.title.replace(/[^a-z0-9-_]+/gi, "_")}.xlsx`,
       new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
     );
   };
@@ -189,31 +273,47 @@ export default function VaultPage() {
   const exportJson = () => {
     if (!active) return;
     downloadFile(
-      `${active.name.replace(/[^a-z0-9-_]+/gi, "_")}.json`,
+      `${active.title.replace(/[^a-z0-9-_]+/gi, "_")}.json`,
       JSON.stringify(active, null, 2),
       "application/json"
     );
   };
 
   const importJson = async (file: File) => {
+    const client = getSupabaseBrowser();
+    if (!client) return;
     try {
       const text = await file.text();
-      const parsed = JSON.parse(text) as Collection;
+      const parsed = JSON.parse(text) as LocalCollection;
       if (!parsed || !Array.isArray(parsed.cards)) throw new Error("bad file");
-      const imported: Collection = {
-        id: uid(),
-        name: `${parsed.name ?? "Imported"} (imported)`,
-        description: parsed.description ?? "",
-        cards: parsed.cards,
-        createdAt: Date.now(),
-      };
-      const next = [imported, ...collections];
-      persist(next);
-      setActiveId(imported.id);
+      const created = await dbCreateCollection(
+        client,
+        `${parsed.name ?? "Imported"} (imported)`,
+        parsed.description ?? ""
+      );
+      for (const c of parsed.cards) {
+        await addCard(client, created.id, localCardToNew(c));
+      }
+      await refresh();
+      setActiveId(created.id);
     } catch {
       window.alert("That file doesn't look like a Card Vault collection export.");
     }
   };
+
+  if (!configured) {
+    return (
+      <div className="mx-auto max-w-md pt-16">
+        <NotConfiguredNotice />
+      </div>
+    );
+  }
+
+  if (authLoading || pageLoading) {
+    return <div className="pt-24 text-center text-sm text-slate-400">Loading your vault…</div>;
+  }
+
+  if (!user) return null;
 
   return (
     <div className="pt-8">
@@ -223,7 +323,7 @@ export default function VaultPage() {
           <p className="mt-1 text-sm text-slate-400">
             {collections.length === 0
               ? "Your cardboard kingdom starts here."
-              : `${collections.length} collection${collections.length === 1 ? "" : "s"} · stored locally in this browser`}
+              : `${collections.length} collection${collections.length === 1 ? "" : "s"} · private to your account`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -253,17 +353,39 @@ export default function VaultPage() {
         </div>
       </div>
 
+      {error && (
+        <p className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          {error}
+        </p>
+      )}
+
+      {localCount > 0 && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[rgba(255,215,0,0.35)] bg-[rgba(255,215,0,0.07)] p-4">
+          <p className="text-sm text-slate-200">
+            <span className="font-bold text-[#ffd700]">Found {localCount} local collection{localCount === 1 ? "" : "s"}</span>{" "}
+            saved in this browser before accounts existed.
+          </p>
+          <button
+            onClick={handleImportLocal}
+            disabled={migrating}
+            className="rounded-lg bg-[#ffd700] px-4 py-2 text-sm font-bold text-black transition hover:bg-[#ffe44d] disabled:opacity-50"
+          >
+            {migrating ? "Importing…" : "Import my local cards"}
+          </button>
+        </div>
+      )}
+
       {/* new collection */}
       <div className="mt-6 flex gap-2">
         <input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && createCollection()}
+          onKeyDown={(e) => e.key === "Enter" && handleCreateCollection()}
           placeholder="New collection name — e.g. “Binder 1”"
           className="max-w-sm flex-1 rounded-lg border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#ffd700]"
         />
         <button
-          onClick={createCollection}
+          onClick={handleCreateCollection}
           disabled={!newName.trim()}
           className="rounded-lg bg-[rgba(255,215,0,0.14)] px-4 py-2.5 text-sm font-bold text-[#ffd700] ring-1 ring-[rgba(255,215,0,0.3)] transition hover:bg-[rgba(255,215,0,0.22)] disabled:opacity-40"
         >
@@ -306,7 +428,7 @@ export default function VaultPage() {
                   }`}
                 >
                   <p className={`truncate text-sm font-bold ${isActive ? "text-[#ffd700]" : "text-white"}`}>
-                    {c.name}
+                    {c.title}
                   </p>
                   <p className="mt-0.5 text-xs text-slate-500">
                     {c.cards.length} unique · {units} cards
@@ -327,10 +449,10 @@ export default function VaultPage() {
                       value={renameValue}
                       onChange={(e) => setRenameValue(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") renameCollection();
+                        if (e.key === "Enter") handleRename();
                         if (e.key === "Escape") setRenaming(false);
                       }}
-                      onBlur={renameCollection}
+                      onBlur={handleRename}
                       className="rounded-lg border border-[#ffd700] bg-black/40 px-2 py-1 text-lg font-extrabold text-white outline-none"
                     />
                   ) : (
@@ -338,11 +460,11 @@ export default function VaultPage() {
                       className="cursor-pointer truncate text-xl font-extrabold text-white hover:text-[#ffd700]"
                       title="Click to rename"
                       onClick={() => {
-                        setRenameValue(active.name);
+                        setRenameValue(active.title);
                         setRenaming(true);
                       }}
                     >
-                      {active.name}
+                      {active.title}
                     </h2>
                   )}
                 </div>
@@ -371,7 +493,7 @@ export default function VaultPage() {
                     JSON
                   </button>
                   <button
-                    onClick={() => deleteCollection(active.id)}
+                    onClick={() => handleDeleteCollection(active.id)}
                     className="rounded-lg border border-red-500/30 px-2.5 py-1 font-semibold text-red-300 hover:bg-red-500/10"
                     title="Delete collection"
                   >
@@ -449,26 +571,26 @@ export default function VaultPage() {
                 <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-4">
                   {visibleCards.map((c) => (
                     <CardTile
-                      key={`${c.cardId}-${c.setCode ?? ""}-${c.rarity ?? ""}`}
+                      key={c.id}
                       imageSmall={c.imageSmall}
                       name={c.name}
                       type={c.type}
                       price={c.price * c.qty}
                       qty={c.qty}
-                      badge={c.rarity}
-                      onClick={() => router.push(`/card/${c.cardId}`)}
+                      badge={c.rarity ?? undefined}
+                      onClick={() => router.push(`/card/${c.ygoId}`)}
                       action={
                         <div className="flex items-center justify-between gap-1">
                           <div className="flex items-center gap-1">
                             <button
-                              onClick={() => changeQty(c, -1)}
+                              onClick={() => handleChangeQty(c, -1)}
                               className="grid h-7 w-7 place-items-center rounded-md bg-white/5 font-bold text-white hover:bg-white/10"
                               aria-label="Decrease quantity"
                             >
                               −
                             </button>
                             <button
-                              onClick={() => changeQty(c, 1)}
+                              onClick={() => handleChangeQty(c, 1)}
                               className="grid h-7 w-7 place-items-center rounded-md bg-white/5 font-bold text-white hover:bg-white/10"
                               aria-label="Increase quantity"
                             >
@@ -476,7 +598,7 @@ export default function VaultPage() {
                             </button>
                           </div>
                           <button
-                            onClick={() => removeCard(c.cardId, c.setCode, c.rarity)}
+                            onClick={() => handleRemoveCard(c.id)}
                             className="rounded-md px-2 py-1 text-xs font-semibold text-red-300 hover:bg-red-500/10"
                           >
                             Remove

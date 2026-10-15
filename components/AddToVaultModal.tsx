@@ -1,20 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   imageSmall,
   tcgPrice,
   formatMoney,
   type YGOCard,
 } from "@/lib/ygoprodeck";
+import { useAuth } from "@/components/AuthProvider";
+import { getSupabaseBrowser } from "@/lib/supabaseClient";
 import {
-  loadCollections,
-  saveCollections,
-  uid,
-  type Collection,
-  type VaultCard,
-} from "@/lib/storage";
+  addCard as dbAddCard,
+  createCollection as dbCreateCollection,
+  getCollections,
+  type CollectionWithCards,
+} from "@/lib/db";
 
 interface AddToVaultModalProps {
   card: YGOCard;
@@ -23,66 +25,66 @@ interface AddToVaultModalProps {
 }
 
 export default function AddToVaultModal({ card, onClose, onAdded }: AddToVaultModalProps) {
-  const [collections, setCollections] = useState<Collection[]>(() => loadCollections());
-  const [selectedId, setSelectedId] = useState<string>(collections[0]?.id ?? "");
+  const { user, loading: authLoading, configured } = useAuth();
+  const [collections, setCollections] = useState<CollectionWithCards[]>([]);
+  const [selectedId, setSelectedId] = useState<string>("");
   const [newName, setNewName] = useState("");
   const [qty, setQty] = useState(1);
   const [setIndex, setSetIndex] = useState(0);
   const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
   const sets = useMemo(() => card.card_sets ?? [], [card]);
   const chosen = sets[setIndex];
 
-  const handleAdd = () => {
-    let targetId = selectedId;
-    let next = [...collections];
-    if (!targetId) {
-      const name = newName.trim() || "My Collection";
-      const created: Collection = {
-        id: uid(),
-        name,
-        description: "",
-        cards: [],
-        createdAt: Date.now(),
-      };
-      next = [created, ...next];
-      targetId = created.id;
-    }
-    const price = tcgPrice(card);
-    next = next.map((c) => {
-      if (c.id !== targetId) return c;
-      const existingIdx = c.cards.findIndex(
-        (vc) =>
-          vc.cardId === card.id &&
-          (vc.setCode ?? "") === (chosen?.set_code ?? "") &&
-          (vc.rarity ?? "") === (chosen?.set_rarity ?? "")
-      );
-      const entry: VaultCard = {
-        cardId: card.id,
-        name: card.name,
-        type: card.type,
-        frameType: card.frameType,
-        attribute: card.attribute,
-        race: card.race,
-        archetype: card.archetype,
-        imageSmall: imageSmall(card),
-        setCode: chosen?.set_code,
-        setName: chosen?.set_name,
-        rarity: chosen?.set_rarity,
-        price,
-        qty,
-      };
-      if (existingIdx >= 0) {
-        const cards = [...c.cards];
-        cards[existingIdx] = { ...cards[existingIdx], qty: cards[existingIdx].qty + qty };
-        return { ...c, cards };
+  useEffect(() => {
+    if (!configured || authLoading || !user) return;
+    const client = getSupabaseBrowser();
+    if (!client) return;
+    getCollections(client)
+      .then((data) => {
+        setCollections(data);
+        setSelectedId(data[0]?.id ?? "");
+      })
+      .catch(() => setCollections([]));
+  }, [configured, authLoading, user]);
+
+  const handleAdd = async () => {
+    const client = getSupabaseBrowser();
+    if (!client) return;
+    setBusy(true);
+    setError("");
+    try {
+      let targetId = selectedId;
+      if (!targetId) {
+        const created = await dbCreateCollection(client, newName.trim() || "My Collection");
+        targetId = created.id;
       }
-      return { ...c, cards: [...c.cards, entry] };
-    });
-    setCollections(next);
-    saveCollections(next);
-    setDone(true);
-    onAdded?.(targetId);
+      await dbAddCard(client, targetId, {
+        ygoId: card.id,
+        name: card.name,
+        qty,
+        setCode: chosen?.set_code ?? null,
+        rarity: chosen?.set_rarity ?? null,
+        price: tcgPrice(card),
+        imageSmall: imageSmall(card),
+        meta: {
+          type: card.type,
+          frameType: card.frameType,
+          attribute: card.attribute,
+          race: card.race,
+          archetype: card.archetype,
+          setName: chosen?.set_name,
+        },
+      });
+      setDone(true);
+      onAdded?.(targetId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't add the card.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -94,7 +96,37 @@ export default function AddToVaultModal({ card, onClose, onAdded }: AddToVaultMo
         className="w-full max-w-md rounded-2xl border border-[rgba(255,215,0,0.2)] bg-[#0c1327] p-5 shadow-2xl rise-in"
         onClick={(e) => e.stopPropagation()}
       >
-        {done ? (
+        {!configured || (!authLoading && !user) ? (
+          <div className="py-6 text-center">
+            <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-[rgba(255,215,0,0.15)] text-3xl text-[#ffd700]">
+              🔒
+            </div>
+            <h3 className="text-lg font-bold text-white">
+              {!configured ? "Accounts aren't set up yet" : "Log in to save cards"}
+            </h3>
+            <p className="mx-auto mt-2 max-w-xs text-sm text-slate-400">
+              {!configured
+                ? "This deployment doesn't have its database keys configured yet. Card search and details still work — saving will be available once setup is finished."
+                : "Your vault is private to your account. Log in or create a free account to start collecting."}
+            </p>
+            <div className="mt-6 flex justify-center gap-2">
+              <button
+                onClick={onClose}
+                className="rounded-lg border border-white/15 px-5 py-2.5 font-semibold text-slate-300 transition hover:bg-white/5"
+              >
+                Close
+              </button>
+              {configured && (
+                <Link
+                  href="/login"
+                  className="rounded-lg bg-[#ffd700] px-5 py-2.5 font-bold text-black transition hover:bg-[#ffe44d]"
+                >
+                  Log In
+                </Link>
+              )}
+            </div>
+          </div>
+        ) : done ? (
           <div className="py-8 text-center">
             <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-[rgba(255,215,0,0.15)] text-3xl text-[#ffd700]">
               ✓
@@ -123,86 +155,99 @@ export default function AddToVaultModal({ card, onClose, onAdded }: AddToVaultMo
               </div>
             </div>
 
-            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">
-              Collection
-            </label>
-            {collections.length > 0 ? (
-              <select
-                value={selectedId}
-                onChange={(e) => setSelectedId(e.target.value)}
-                className="mb-3 w-full rounded-lg border border-white/10 bg-[#121b36] px-3 py-2.5 text-sm text-white outline-none focus:border-[#ffd700]"
-              >
-                {collections.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.cards.reduce((n, x) => n + x.qty, 0)} cards)
-                  </option>
-                ))}
-                <option value="">+ New collection…</option>
-              </select>
-            ) : null}
-            {(selectedId === "" || collections.length === 0) && (
-              <input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="New collection name"
-                className="mb-3 w-full rounded-lg border border-white/10 bg-[#121b36] px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#ffd700]"
-              />
-            )}
-
-            {sets.length > 0 && (
+            {authLoading ? (
+              <p className="py-4 text-center text-sm text-slate-400">Loading your collections…</p>
+            ) : (
               <>
                 <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Printing / rarity
+                  Collection
                 </label>
-                <select
-                  value={setIndex}
-                  onChange={(e) => setSetIndex(Number(e.target.value))}
-                  className="mb-3 w-full rounded-lg border border-white/10 bg-[#121b36] px-3 py-2.5 text-sm text-white outline-none focus:border-[#ffd700]"
-                >
-                  {sets.map((s, i) => (
-                    <option key={`${s.set_code}-${i}`} value={i}>
-                      {s.set_rarity} — {s.set_code}
-                    </option>
-                  ))}
-                </select>
+                {collections.length > 0 ? (
+                  <select
+                    value={selectedId}
+                    onChange={(e) => setSelectedId(e.target.value)}
+                    className="mb-3 w-full rounded-lg border border-white/10 bg-[#121b36] px-3 py-2.5 text-sm text-white outline-none focus:border-[#ffd700]"
+                  >
+                    {collections.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.title} ({c.cards.reduce((n, x) => n + x.qty, 0)} cards)
+                      </option>
+                    ))}
+                    <option value="">+ New collection…</option>
+                  </select>
+                ) : null}
+                {(selectedId === "" || collections.length === 0) && (
+                  <input
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="New collection name"
+                    className="mb-3 w-full rounded-lg border border-white/10 bg-[#121b36] px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#ffd700]"
+                  />
+                )}
+
+                {sets.length > 0 && (
+                  <>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">
+                      Printing / rarity
+                    </label>
+                    <select
+                      value={setIndex}
+                      onChange={(e) => setSetIndex(Number(e.target.value))}
+                      className="mb-3 w-full rounded-lg border border-white/10 bg-[#121b36] px-3 py-2.5 text-sm text-white outline-none focus:border-[#ffd700]"
+                    >
+                      {sets.map((s, i) => (
+                        <option key={`${s.set_code}-${i}`} value={i}>
+                          {s.set_rarity} — {s.set_code}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
+
+                <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Quantity
+                </label>
+                <div className="mb-5 flex items-center gap-3">
+                  <button
+                    onClick={() => setQty(Math.max(1, qty - 1))}
+                    className="grid h-9 w-9 place-items-center rounded-lg bg-white/5 text-lg font-bold text-white hover:bg-white/10"
+                    aria-label="Decrease quantity"
+                  >
+                    −
+                  </button>
+                  <span className="w-10 text-center text-lg font-extrabold text-white">{qty}</span>
+                  <button
+                    onClick={() => setQty(Math.min(99, qty + 1))}
+                    className="grid h-9 w-9 place-items-center rounded-lg bg-white/5 text-lg font-bold text-white hover:bg-white/10"
+                    aria-label="Increase quantity"
+                  >
+                    +
+                  </button>
+                </div>
+
+                {error && (
+                  <p className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                    {error}
+                  </p>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={onClose}
+                    className="flex-1 rounded-lg border border-white/15 px-4 py-2.5 font-semibold text-slate-300 transition hover:bg-white/5"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAdd}
+                    disabled={busy}
+                    className="flex-1 rounded-lg bg-[#ffd700] px-4 py-2.5 font-bold text-black transition hover:bg-[#ffe44d] disabled:opacity-50"
+                  >
+                    {busy ? "Adding…" : "Add to Vault"}
+                  </button>
+                </div>
               </>
             )}
-
-            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">
-              Quantity
-            </label>
-            <div className="mb-5 flex items-center gap-3">
-              <button
-                onClick={() => setQty(Math.max(1, qty - 1))}
-                className="grid h-9 w-9 place-items-center rounded-lg bg-white/5 text-lg font-bold text-white hover:bg-white/10"
-                aria-label="Decrease quantity"
-              >
-                −
-              </button>
-              <span className="w-10 text-center text-lg font-extrabold text-white">{qty}</span>
-              <button
-                onClick={() => setQty(Math.min(99, qty + 1))}
-                className="grid h-9 w-9 place-items-center rounded-lg bg-white/5 text-lg font-bold text-white hover:bg-white/10"
-                aria-label="Increase quantity"
-              >
-                +
-              </button>
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={onClose}
-                className="flex-1 rounded-lg border border-white/15 px-4 py-2.5 font-semibold text-slate-300 transition hover:bg-white/5"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAdd}
-                className="flex-1 rounded-lg bg-[#ffd700] px-4 py-2.5 font-bold text-black transition hover:bg-[#ffe44d]"
-              >
-                Add to Vault
-              </button>
-            </div>
           </>
         )}
       </div>

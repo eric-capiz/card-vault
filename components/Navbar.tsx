@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuth } from "@/components/AuthProvider";
 
 const LINKS = [
   { href: "/", label: "Home" },
@@ -14,6 +15,15 @@ const LINKS = [
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, loading, configured, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push("/");
+    router.refresh();
+  };
+
   return (
     <header className="sticky top-0 z-40 border-b border-[rgba(255,215,0,0.14)] bg-[rgba(6,10,21,0.86)] backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-3">
@@ -43,6 +53,41 @@ export default function Navbar() {
             );
           })}
         </nav>
+        <div className="ml-2 flex shrink-0 items-center gap-2 border-l border-white/10 pl-3">
+          {loading ? (
+            <span className="px-2 text-xs text-slate-500">…</span>
+          ) : !configured ? null : user ? (
+            <>
+              <span
+                className="hidden max-w-[140px] truncate text-xs font-semibold text-slate-300 sm:block"
+                title={user.email ?? ""}
+              >
+                {user.email}
+              </span>
+              <button
+                onClick={handleSignOut}
+                className="whitespace-nowrap rounded-lg border border-white/15 px-3 py-1.5 text-xs font-bold text-slate-200 transition hover:bg-white/5"
+              >
+                Sign out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-bold text-slate-200 transition hover:bg-white/5"
+              >
+                Log in
+              </Link>
+              <Link
+                href="/signup"
+                className="whitespace-nowrap rounded-lg bg-[#ffd700] px-3 py-1.5 text-xs font-bold text-black transition hover:bg-[#ffe44d]"
+              >
+                Sign up
+              </Link>
+            </>
+          )}
+        </div>
       </div>
     </header>
   );
