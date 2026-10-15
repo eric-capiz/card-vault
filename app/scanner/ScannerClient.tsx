@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   imageSmall,
   searchCards,
@@ -124,21 +125,25 @@ export default function ScannerClient() {
   const busy = phase === "reading" || phase === "verifying";
 
   return (
-    <div className="pt-8">
-      <h1 className="text-gold-grad text-3xl font-black sm:text-4xl">Card Scanner</h1>
-      <p className="mt-1 max-w-2xl text-sm text-slate-400">
+    <div className="pt-8 sm:pt-10">
+      <p className="eyebrow">OCR</p>
+      <h1 className="font-display mt-1 text-3xl font-bold text-paper sm:text-4xl">
+        Card <span className="text-foil">Scanner</span>
+      </h1>
+      <p className="mt-1.5 max-w-2xl text-sm text-fog">
         Photograph a card and free on-device OCR reads its name, then verifies it against the card
         database. Nothing uploads anywhere — the photo never leaves your device.
       </p>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[320px_1fr]">
-        <div className="rounded-2xl border border-[rgba(255,215,0,0.14)] bg-[#0c1327]/80 p-4">
+      <div className="mt-6 grid gap-5 lg:grid-cols-[320px_1fr]">
+        <div className="panel h-fit p-4">
           <input
             ref={fileRef}
             type="file"
             accept="image/*"
             capture="environment"
             className="hidden"
+            aria-label="Card photo"
             onChange={(e) => {
               const f = e.target.files?.[0];
               if (f) handleFile(f);
@@ -146,95 +151,108 @@ export default function ScannerClient() {
             }}
           />
           {preview ? (
-            <div className="relative aspect-[3/4] overflow-hidden rounded-xl border border-white/10">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              className="relative aspect-[3/4] overflow-hidden rounded-xl border border-white/10"
+            >
               <Image src={preview} alt="Card to scan" fill className="object-contain bg-black" sizes="320px" />
-            </div>
+              {busy && (
+                <div className="scan-beam pointer-events-none absolute inset-x-0 top-0 h-16" aria-hidden />
+              )}
+            </motion.div>
           ) : (
             <button
               onClick={() => fileRef.current?.click()}
-              className="grid aspect-[3/4] w-full place-items-center rounded-xl border border-dashed border-[rgba(255,215,0,0.3)] bg-black/30 text-center transition hover:border-[#ffd700]"
+              className="grid aspect-[3/4] w-full place-items-center rounded-xl border border-dashed border-foil-violet/30 bg-black/30 text-center transition hover:border-foil-violet/60 hover:bg-foil-violet/5"
             >
               <div>
-                <div className="text-5xl">📸</div>
-                <p className="mt-3 font-bold text-white">Take / upload a photo</p>
-                <p className="mt-1 px-6 text-xs text-slate-400">
+                <div
+                  className="mx-auto grid h-14 w-14 place-items-center rounded-2xl text-foil-violet"
+                  style={{ background: "rgba(167,139,250,0.1)", boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.25)" }}
+                  aria-hidden
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-7 w-7">
+                    <path d="M4 8V5a1 1 0 011-1h3M16 4h3a1 1 0 011 1v3M20 16v3a1 1 0 01-1 1h-3M8 20H5a1 1 0 01-1-1v-3" strokeLinecap="round" />
+                    <circle cx="12" cy="12" r="3.2" />
+                  </svg>
+                </div>
+                <p className="mt-3 font-display font-bold text-paper">Take / upload a photo</p>
+                <p className="mt-1 px-6 text-xs text-fog">
                   Straight-on, good light, card fills the frame
                 </p>
               </div>
             </button>
           )}
           <div className="mt-3 flex gap-2">
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="flex-1 rounded-lg border border-white/15 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/5"
-            >
+            <button onClick={() => fileRef.current?.click()} className="btn-ghost flex-1 py-2.5 text-sm">
               {preview ? "Retake" : "Choose photo"}
             </button>
-            <button
-              onClick={scan}
-              disabled={!preview || busy}
-              className="flex-1 rounded-lg bg-[#ffd700] py-2.5 text-sm font-bold text-black transition hover:bg-[#ffe44d] disabled:opacity-40"
-            >
+            <button onClick={scan} disabled={!preview || busy} className="btn-foil flex-1 py-2.5 text-sm">
               {busy ? "Scanning…" : "Scan Card"}
             </button>
           </div>
           {busy && (
-            <div className="mt-3">
-              <div className="h-2 overflow-hidden rounded-full bg-white/5">
-                <div className="h-full w-1/2 animate-pulse rounded-full bg-[#ffd700]" />
+            <div className="mt-3" aria-live="polite">
+              <div className="h-2 overflow-hidden rounded-full bg-white/6">
+                <div className="h-full w-1/3 rounded-full bar-slide bg-gradient-to-r from-foil-violet via-foil-cyan to-foil-pink" />
               </div>
-              <p className="mt-2 text-center text-xs text-slate-400">{progress}</p>
+              <p className="mt-2 text-center text-xs text-fog">{progress}</p>
             </div>
           )}
         </div>
 
-        <div>
+        <div className="min-w-0">
           {error && (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200" role="alert">
               {error}
             </div>
           )}
 
           {phase === "done" && matches.length > 0 && (
             <>
-              <h2 className="text-lg font-extrabold text-white">
-                Matches <span className="text-sm font-normal text-slate-500">— confirm the right card</span>
+              <h2 className="font-display text-lg font-bold text-paper">
+                Matches <span className="font-sans text-sm font-normal text-dim">— confirm the right card</span>
               </h2>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 {matches.map((m, i) => (
-                  <div
+                  <motion.div
                     key={`${m.card.id}-${i}`}
-                    className="flex gap-3 rounded-2xl border border-[rgba(255,215,0,0.2)] bg-[#0c1327]/80 p-3"
+                    initial={{ opacity: 0, y: 18 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.45, delay: i * 0.08, ease: [0.22, 1, 0.36, 1] }}
+                    className="panel panel-hover flex gap-3 p-3"
                   >
-                    <div className="relative h-24 w-[70px] shrink-0 overflow-hidden rounded-lg">
+                    <div className="relative h-24 w-[70px] shrink-0 overflow-hidden rounded-lg border border-white/10">
                       <Image src={imageSmall(m.card)} alt={m.card.name} fill className="object-cover" sizes="70px" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold text-white">{m.card.name}</p>
-                      <p className="text-xs text-slate-400">{m.card.type}</p>
-                      <p className="text-xs font-semibold text-emerald-300">{m.confidence}</p>
-                      <p className="text-xs text-slate-500">Read as: “{m.candidate}”</p>
-                      <div className="mt-2 flex gap-2">
-                        <button
-                          onClick={() => setAddCard(m.card)}
-                          className="rounded-lg bg-[rgba(255,215,0,0.14)] px-3 py-1.5 text-xs font-bold text-[#ffd700] ring-1 ring-[rgba(255,215,0,0.3)] hover:bg-[rgba(255,215,0,0.22)]"
-                        >
-                          + Vault · {formatMoney(tcgPrice(m.card))}
-                        </button>
-                      </div>
+                      <p className="truncate font-display text-sm font-bold text-paper">{m.card.name}</p>
+                      <p className="text-xs text-fog">{m.card.type}</p>
+                      <p className="mt-0.5 inline-block rounded-md bg-emerald-400/12 px-1.5 py-0.5 text-[11px] font-bold text-emerald-300">
+                        {m.confidence}
+                      </p>
+                      <p className="mt-0.5 truncate text-[11px] text-dim">Read as: “{m.candidate}”</p>
+                      <button
+                        onClick={() => setAddCard(m.card)}
+                        className="btn-value mt-2 px-3 py-1.5 text-xs"
+                      >
+                        + Vault · {formatMoney(tcgPrice(m.card))}
+                      </button>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             </>
           )}
 
           {rawLines.length > 0 && (
-            <details className="mt-6 rounded-2xl border border-white/8 bg-black/20 p-4">
-              <summary className="cursor-pointer text-sm font-bold text-slate-300">
-                What the OCR read ({rawLines.length} lines)
+            <details className="panel mt-6 p-4">
+              <summary className="cursor-pointer text-sm font-bold text-paper">
+                What the OCR read <span className="font-normal text-dim">({rawLines.length} lines)</span>
               </summary>
-              <ul className="mt-2 space-y-1 font-mono text-xs text-slate-400">
+              <ul className="mt-2 space-y-1 font-mono text-xs text-fog">
                 {rawLines.map((l, i) => (
                   <li key={i}>“{l}”</li>
                 ))}
@@ -243,9 +261,9 @@ export default function ScannerClient() {
           )}
 
           {phase === "idle" && !preview && (
-            <div className="rounded-2xl border border-white/8 bg-black/20 p-6 text-sm text-slate-400">
-              <h3 className="font-bold text-white">Tips for a clean scan</h3>
-              <ul className="mt-2 list-disc space-y-1 pl-5">
+            <div className="panel p-6 text-sm text-fog">
+              <h3 className="font-display font-bold text-paper">Tips for a clean scan</h3>
+              <ul className="mt-2.5 list-disc space-y-1.5 pl-5">
                 <li>Hold the phone directly above the card — no angle.</li>
                 <li>Bright, even light. Avoid glare on holographic cards.</li>
                 <li>The card name at the top is what gets read — keep it sharp.</li>
@@ -256,7 +274,9 @@ export default function ScannerClient() {
         </div>
       </div>
 
-      {addCard && <AddToVaultModal card={addCard} onClose={() => setAddCard(null)} />}
+      <AnimatePresence>
+        {addCard && <AddToVaultModal card={addCard} onClose={() => setAddCard(null)} />}
+      </AnimatePresence>
     </div>
   );
 }

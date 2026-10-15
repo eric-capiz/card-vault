@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { AnimatePresence } from "framer-motion";
 import {
   CARD_TYPE_OPTIONS,
   imageSmall,
@@ -63,32 +64,39 @@ function SearchInner() {
   };
 
   return (
-    <div className="pt-8">
-      <h1 className="text-gold-grad text-3xl font-black sm:text-4xl">Card Search</h1>
-      <p className="mt-1 text-sm text-slate-400">
+    <div className="pt-8 sm:pt-10">
+      <p className="eyebrow">Database</p>
+      <h1 className="font-display mt-1 text-3xl font-bold text-paper sm:text-4xl">
+        Card <span className="text-foil">Search</span>
+      </h1>
+      <p className="mt-1.5 text-sm text-fog">
         Powered by the free YGOPRODeck database — 10,000+ cards.
       </p>
 
       <form
         onSubmit={submit}
-        className="mt-6 grid gap-3 rounded-2xl border border-[rgba(255,215,0,0.14)] bg-[#0c1327]/80 p-4 sm:grid-cols-[1fr_1fr_1fr_auto]"
+        className="panel mt-6 grid gap-3 p-4 sm:grid-cols-[1fr_1fr_1fr_auto] sm:p-5"
+        role="search"
       >
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Card name (fuzzy)"
-          className="rounded-lg border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#ffd700]"
+          aria-label="Card name"
+          className="field px-3.5 py-2.5 text-sm"
         />
         <input
           value={archetype}
           onChange={(e) => setArchetype(e.target.value)}
           placeholder="Archetype — e.g. Blue-Eyes"
-          className="rounded-lg border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#ffd700]"
+          aria-label="Archetype"
+          className="field px-3.5 py-2.5 text-sm"
         />
         <select
           value={type}
           onChange={(e) => setType(e.target.value)}
-          className="rounded-lg border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white outline-none focus:border-[#ffd700]"
+          aria-label="Card type"
+          className="field px-3.5 py-2.5 text-sm"
         >
           <option value="">All types</option>
           {CARD_TYPE_OPTIONS.map((t) => (
@@ -97,37 +105,42 @@ function SearchInner() {
             </option>
           ))}
         </select>
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-lg bg-[#ffd700] px-6 py-2.5 font-bold text-black transition hover:bg-[#ffe44d] disabled:opacity-50"
-        >
+        <button type="submit" disabled={loading} className="btn-foil px-7 py-2.5 text-sm">
           {loading ? "Searching…" : "Search"}
         </button>
       </form>
 
       {error && (
-        <div className="mt-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+        <div className="mt-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300" role="alert">
           {error}
         </div>
       )}
 
       {loading && (
-        <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <div className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5" aria-hidden>
           {Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} className="animate-pulse">
-              <div className="aspect-[3/4.4] rounded-xl bg-white/5" />
-              <div className="mt-2 h-4 w-3/4 rounded bg-white/5" />
+            <div key={i}>
+              <div className="skeleton aspect-[3/4.4]" />
+              <div className="skeleton mt-2 h-4 w-3/4" />
             </div>
           ))}
         </div>
       )}
 
       {!loading && searched && results.length === 0 && !error && (
-        <div className="mt-16 text-center">
-          <div className="text-5xl">🔍</div>
-          <h2 className="mt-4 text-xl font-bold text-white">No cards found</h2>
-          <p className="mt-1 text-sm text-slate-400">
+        <div className="rise-in mx-auto mt-16 max-w-sm text-center">
+          <div
+            className="mx-auto grid h-16 w-16 place-items-center rounded-2xl text-foil-violet"
+            style={{ background: "rgba(167,139,250,0.1)", boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.25)" }}
+            aria-hidden
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-7 w-7">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-3.5-3.5" strokeLinecap="round" />
+            </svg>
+          </div>
+          <h2 className="font-display mt-4 text-xl font-bold text-paper">No cards found</h2>
+          <p className="mt-1 text-sm text-fog">
             Try a shorter or differently-spelled name — the search is fuzzy.
           </p>
         </div>
@@ -135,14 +148,15 @@ function SearchInner() {
 
       {!loading && results.length > 0 && (
         <>
-          <p className="mt-6 text-sm text-slate-400">
-            <span className="font-bold text-[#ffd700]">{results.length}</span> result
-            {results.length === 1 ? "" : "s"}
+          <p className="mt-8 text-sm text-fog">
+            <span className="font-display text-lg font-bold text-foil-violet">{results.length}</span>{" "}
+            result{results.length === 1 ? "" : "s"}
           </p>
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5">
-            {results.map((c) => (
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5">
+            {results.map((c, i) => (
               <CardTile
                 key={c.id}
+                index={i}
                 imageSmall={imageSmall(c)}
                 name={c.name}
                 type={c.type}
@@ -151,7 +165,8 @@ function SearchInner() {
                 action={
                   <button
                     onClick={() => setAddCard(c)}
-                    className="w-full rounded-lg bg-[rgba(255,215,0,0.12)] py-1.5 text-xs font-bold text-[#ffd700] ring-1 ring-[rgba(255,215,0,0.3)] transition hover:bg-[rgba(255,215,0,0.22)]"
+                    className="btn-value w-full py-1.5 text-xs"
+                    aria-label={`Add ${c.name} to vault`}
                   >
                     + Vault
                   </button>
@@ -162,14 +177,24 @@ function SearchInner() {
         </>
       )}
 
-      {addCard && <AddToVaultModal card={addCard} onClose={() => setAddCard(null)} />}
+      <AnimatePresence>
+        {addCard && <AddToVaultModal card={addCard} onClose={() => setAddCard(null)} />}
+      </AnimatePresence>
     </div>
   );
 }
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<div className="pt-16 text-center text-slate-400">Loading search…</div>}>
+    <Suspense
+      fallback={
+        <div className="grid gap-3 pt-16 sm:grid-cols-5" aria-hidden>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="skeleton aspect-[3/4.4]" />
+          ))}
+        </div>
+      }
+    >
       <SearchInner />
     </Suspense>
   );
