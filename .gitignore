@@ -1,38 +1,7 @@
-# Dependencies
 node_modules/
+.next/
+out/
 dist/
-
-# Environment variables
-.env
-.env.local
-.env.development
-.env.test
-.env.production
-
-# Logs
-logs
 *.log
-npm-debug.log*
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-
-# Google Cloud credentials
-backend/src/config/google-credentials.json
-backend/src/config/*-credentials.json
-backend/src/config/*.json
-!backend/src/config/db.js
-
-# Tesseract training data
-*.traineddata
-backend/eng.traineddata
+.env*.local
