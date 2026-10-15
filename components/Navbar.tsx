@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -25,49 +26,64 @@ export default function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-[rgba(255,215,0,0.14)] bg-[rgba(6,10,21,0.86)] backdrop-blur-md">
-      <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-3">
-        <Link href="/" className="mr-2 flex items-center gap-2.5">
-          <span className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-[#ffe44d] to-[#b39700] text-lg font-black text-[#0c1327] shadow-[0_0_18px_rgba(255,215,0,0.35)]">
+    <header className="sticky top-0 z-40 border-b border-white/8 bg-obsidian/85 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-3 sm:px-6">
+        <Link
+          href="/"
+          className="mr-1 flex shrink-0 items-center gap-2.5 rounded-lg"
+          aria-label="Card Vault home"
+        >
+          <span
+            className="grid h-9 w-9 place-items-center rounded-xl text-base font-black text-obsidian shadow-[0_0_22px_rgba(167,139,250,0.45)]"
+            style={{
+              background:
+                "linear-gradient(135deg,#c4b5fd 0%,#a78bfa 30%,#67e8f9 62%,#f9a8d4 100%)",
+            }}
+            aria-hidden
+          >
             ◆
           </span>
-          <span className="text-lg font-extrabold tracking-wide">
-            <span className="text-gold-grad">CARD VAULT</span>
+          <span className="font-display hidden text-lg font-bold tracking-[0.18em] min-[420px]:block">
+            <span className="text-foil">CARD VAULT</span>
           </span>
         </Link>
-        <nav className="ml-auto flex items-center gap-1 overflow-x-auto">
+
+        <nav className="ml-auto flex items-center gap-0.5 overflow-x-auto" aria-label="Primary">
           {LINKS.map((l) => {
             const active = pathname === l.href;
             return (
               <Link
                 key={l.href}
                 href={l.href}
-                className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
-                  active
-                    ? "bg-[rgba(255,215,0,0.14)] text-[#ffd700]"
-                    : "text-slate-300 hover:bg-white/5 hover:text-white"
+                className={`relative whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold transition-colors duration-200 ${
+                  active ? "text-paper" : "text-fog hover:text-paper"
                 }`}
               >
-                {l.label}
+                {active && (
+                  <motion.span
+                    layoutId="nav-active-pill"
+                    className="absolute inset-0 rounded-lg border border-foil-violet/30 bg-gradient-to-r from-foil-violet/15 via-foil-cyan/10 to-foil-pink/15"
+                    transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                  />
+                )}
+                <span className="relative">{l.label}</span>
               </Link>
             );
           })}
         </nav>
-        <div className="ml-2 flex shrink-0 items-center gap-2 border-l border-white/10 pl-3">
+
+        <div className="ml-1 flex shrink-0 items-center gap-2 border-l border-white/10 pl-3">
           {loading ? (
-            <span className="px-2 text-xs text-slate-500">…</span>
+            <span className="skeleton h-8 w-16" aria-hidden />
           ) : !configured ? null : user ? (
             <>
               <span
-                className="hidden max-w-[140px] truncate text-xs font-semibold text-slate-300 sm:block"
+                className="hidden max-w-[140px] truncate text-xs font-semibold text-fog lg:block"
                 title={user.email ?? ""}
               >
                 {user.email}
               </span>
-              <button
-                onClick={handleSignOut}
-                className="whitespace-nowrap rounded-lg border border-white/15 px-3 py-1.5 text-xs font-bold text-slate-200 transition hover:bg-white/5"
-              >
+              <button onClick={handleSignOut} className="btn-ghost whitespace-nowrap px-3 py-1.5 text-xs">
                 Sign out
               </button>
             </>
@@ -75,14 +91,11 @@ export default function Navbar() {
             <>
               <Link
                 href="/login"
-                className="whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-bold text-slate-200 transition hover:bg-white/5"
+                className="whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-bold text-fog transition hover:bg-white/5 hover:text-paper"
               >
                 Log in
               </Link>
-              <Link
-                href="/signup"
-                className="whitespace-nowrap rounded-lg bg-[#ffd700] px-3 py-1.5 text-xs font-bold text-black transition hover:bg-[#ffe44d]"
-              >
+              <Link href="/signup" className="btn-foil whitespace-nowrap px-3.5 py-1.5 text-xs">
                 Sign up
               </Link>
             </>
