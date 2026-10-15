@@ -1,99 +1,55 @@
-# Card Vault
+# Card Vault 2.0 — Yu-Gi-Oh! Collection Manager
 
-A Yu-Gi-Oh! card collection management system that uses OCR technology to scan and organize your cards.
+A ground-up rebuild of the original Card Vault. Track your Yu-Gi-Oh! card collection with live
+prices, gorgeous card art, deck building with banlist checks, and free on-device card scanning —
+no account, no backend, no cost.
+
+**Live demo:** deploy this repo root on Vercel (zero config — it's a standard Next.js app).
 
 ## Features
 
-- 📸 Card scanning with OCR technology
-- 📊 Collection management and organization
-- 📱 Responsive design for mobile and desktop
-- 🔄 Real-time card validation
-- 📥 Batch upload support
-- 📋 Spreadsheet export functionality
-- 👤 User authentication and profiles
+- 🔍 **Card search** — fuzzy name search, archetype and type filters across 10,000+ cards
+- 🃏 **Card detail** — full art, ATK/DEF, level, attribute, printings with rarities, TCGplayer /
+  Cardmarket / eBay / Amazon prices, TCG banlist status
+- 🗝️ **My Vault** — unlimited collections with quantities, set/rarity tracking, sort & filter,
+  XLSX + JSON export, JSON import
+- 📊 **Dashboard** — total collection value, rarity breakdown, top archetypes, most valuable cards
+- ⚔️ **Deck Builder** — Main (40–60) / Extra (0–15) / Side (0–15) decks, copy-limit + banlist
+  legality warnings, **.ydk export** (EDOPro/DuelingBook) and .ydk import
+- 📸 **Scanner** — photograph a card; free on-device OCR (tesseract.js) reads the name and
+  verifies it against the card database. The photo never leaves your device.
 
-## Tech Stack
+## Tech
 
-### Frontend
+- Next.js (App Router) + React + TypeScript + Tailwind CSS
+- Card data, images and prices: free [YGOPRODeck API v7](https://ygoprodeck.com/api-guide/)
+  (no key needed)
+- OCR: [tesseract.js](https://tesseract.projectnaptha.com/) running entirely in the browser
+- Excel export: SheetJS
+- Persistence: **localStorage** — your data lives in your browser. No accounts, no database,
+  $0 to run. Back up with JSON export (My Vault → JSON) before switching devices or clearing
+  site data.
 
-- React with TypeScript
-- Material-UI for components
-- Redux Toolkit for state management
-- React Router for navigation
-- Axios for API requests
+## Getting started
 
-### Backend
+```bash
+npm install
+npm run dev
+```
 
-- Node.js/Express
-- MongoDB Atlas
-- Google Cloud Vision API
-- JWT Authentication
-- (See backend/README.md for more details)
+Open http://localhost:3000.
 
-## Getting Started
+## Deploy
 
-1. Clone the repository:
+Push to GitHub and import the repo in Vercel — no environment variables, no build config needed.
 
-   ```bash
-   git clone [repository-url]
-   cd card-vault
-   ```
+## Legacy code
 
-2. Install dependencies:
-
-   ```bash
-   # Install frontend dependencies
-   cd frontend
-   npm install
-
-   # Install backend dependencies
-   cd ../backend
-   npm install
-   ```
-
-3. Set up environment variables:
-
-   ```bash
-   # Frontend (.env)
-   VITE_API_URL=http://localhost:5000
-
-   # Backend (.env)
-   PORT=5000
-   MONGODB_URI=your_mongodb_connection_string
-   JWT_SECRET=your_jwt_secret
-   GOOGLE_CLOUD_CREDENTIALS=your_credentials
-   ```
-
-4. Start the development servers:
-
-   ```bash
-   # Start backend (from backend directory)
-   npm run dev
-
-   # Start frontend (from frontend directory)
-   npm run dev
-   ```
-
-## UI Features
-
-- 🎨 Modern, responsive Material-UI design
-- 🎮 Yu-Gi-Oh! themed animations and effects
-- 📱 Mobile-first approach
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+The `backend/` (Express + MongoDB + Google Vision OCR, formerly on Fly.io) and `frontend/`
+(React + MUI) directories are the **original v1 app** and are no longer used. They're kept for
+reference only — the v2 app lives at the repo root.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- Yu-Gi-Oh! Trading Card Game
-- Google Cloud Vision API for OCR capabilities
-- Material-UI for the component library
+MIT. Unofficial fan project — Yu-Gi-Oh! is a trademark of Konami. Card data/images/prices
+courtesy of YGOPRODeck.
