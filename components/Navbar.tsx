@@ -75,7 +75,7 @@ export default function Navbar() {
         <div className="ml-1 flex shrink-0 items-center gap-2 border-l border-white/10 pl-3">
           {loading ? (
             <span className="skeleton h-8 w-16" aria-hidden />
-          ) : !configured ? null : user ? (
+          ) : user && configured ? (
             <>
               <span
                 className="hidden max-w-[140px] truncate text-xs font-semibold text-fog lg:block"
