@@ -11,25 +11,16 @@ import {
   type YGOCard,
 } from "@/lib/ygoprodeck";
 import { useAuth } from "@/components/AuthProvider";
-import { getSupabaseBrowser } from "@/lib/supabaseClient";
-import {
-  addCard as dbAddCard,
-  createCollection as dbCreateCollection,
-  getCollections,
-  type CollectionWithCards,
-} from "@/lib/db";
+import { fetchVault, saveVault, type VaultCard } from "@/lib/api";
 
 interface AddToVaultModalProps {
   card: YGOCard;
   onClose: () => void;
-  onAdded?: (collectionId: string) => void;
+  onAdded?: () => void;
 }
 
 export default function AddToVaultModal({ card, onClose, onAdded }: AddToVaultModalProps) {
   const { user, loading: authLoading, configured } = useAuth();
-  const [collections, setCollections] = useState<CollectionWithCards[]>([]);
-  const [selectedId, setSelectedId] = useState<string>("");
-  const [newName, setNewName] = useState("");
   const [qty, setQty] = useState(1);
   const [setIndex, setSetIndex] = useState(0);
   const [done, setDone] = useState(false);
@@ -38,18 +29,6 @@ export default function AddToVaultModal({ card, onClose, onAdded }: AddToVaultMo
 
   const sets = useMemo(() => card.card_sets ?? [], [card]);
   const chosen = sets[setIndex];
-
-  useEffect(() => {
-    if (!configured || authLoading || !user) return;
-    const client = getSupabaseBrowser();
-    if (!client) return;
-    getCollections(client)
-      .then((data) => {
-        setCollections(data);
-        setSelectedId(data[0]?.id ?? "");
-      })
-      .catch(() => setCollections([]));
-  }, [configured, authLoading, user]);
 
   // lock body scroll + close on Escape
   useEffect(() => {
@@ -64,35 +43,32 @@ export default function AddToVaultModal({ card, onClose, onAdded }: AddToVaultMo
   }, [onClose]);
 
   const handleAdd = async () => {
-    const client = getSupabaseBrowser();
-    if (!client) return;
     setBusy(true);
     setError("");
     try {
-      let targetId = selectedId;
-      if (!targetId) {
-        const created = await dbCreateCollection(client, newName.trim() || "My Collection");
-        targetId = created.id;
-      }
-      await dbAddCard(client, targetId, {
+      const cards = await fetchVault();
+      const existing = cards.find((c) => c.ygoId === card.id);
+      const entry: VaultCard = {
         ygoId: card.id,
         name: card.name,
-        qty,
-        setCode: chosen?.set_code ?? null,
-        rarity: chosen?.set_rarity ?? null,
+        qty: qty + (existing?.qty ?? 0),
+        setCode: chosen?.set_code,
+        rarity: chosen?.set_rarity,
         price: tcgPrice(card),
         imageSmall: imageSmall(card),
-        meta: {
-          type: card.type,
-          frameType: card.frameType,
-          attribute: card.attribute,
-          race: card.race,
-          archetype: card.archetype,
-          setName: chosen?.set_name,
-        },
-      });
+        cardType: card.type,
+        frameType: card.frameType,
+        attribute: card.attribute,
+        race: card.race,
+        archetype: card.archetype,
+        setName: chosen?.set_name,
+      };
+      const next = existing
+        ? cards.map((c) => (c.ygoId === card.id ? entry : c))
+        : [...cards, entry];
+      await saveVault(next);
       setDone(true);
-      onAdded?.(targetId);
+      onAdded?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't add the card.");
     } finally {
@@ -137,7 +113,7 @@ export default function AddToVaultModal({ card, onClose, onAdded }: AddToVaultMo
             </h3>
             <p className="mx-auto mt-2 max-w-xs text-sm text-fog">
               {!configured
-                ? "This deployment doesn't have its database keys configured yet. Card search and details still work — saving will be available once setup is finished."
+                ? "This deployment doesn't have its database keys configured yet (MONGODB_URI and SESSION_SECRET). Card search and details still work — saving will be available once setup is finished."
                 : "Your vault is private to your account. Log in or create a free account to start collecting."}
             </p>
             <div className="mt-6 flex justify-center gap-2">
@@ -184,36 +160,9 @@ export default function AddToVaultModal({ card, onClose, onAdded }: AddToVaultMo
             </div>
 
             {authLoading ? (
-              <p className="py-4 text-center text-sm text-fog">Loading your collections…</p>
+              <p className="py-4 text-center text-sm text-fog">Loading…</p>
             ) : (
               <>
-                <label className="eyebrow mb-1.5 block" htmlFor="av-collection">
-                  Collection
-                </label>
-                {collections.length > 0 ? (
-                  <select
-                    id="av-collection"
-                    value={selectedId}
-                    onChange={(e) => setSelectedId(e.target.value)}
-                    className="field mb-3 w-full px-3 py-2.5 text-sm"
-                  >
-                    {collections.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.title} ({c.cards.reduce((n, x) => n + x.qty, 0)} cards)
-                      </option>
-                    ))}
-                    <option value="">+ New collection…</option>
-                  </select>
-                ) : null}
-                {(selectedId === "" || collections.length === 0) && (
-                  <input
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    placeholder="New collection name"
-                    className="field mb-3 w-full px-3 py-2.5 text-sm"
-                  />
-                )}
-
                 {sets.length > 0 && (
                   <>
                     <label className="eyebrow mb-1.5 block" htmlFor="av-printing">
@@ -283,7 +232,3 @@ export default function AddToVaultModal({ card, onClose, onAdded }: AddToVaultMo
     </motion.div>
   );
 }
-
-/** Usage: wrap in <AnimatePresence> at the call site for exit animation:
- *   <AnimatePresence>{addCard && <AddToVaultModal card={addCard} onClose={...} />}</AnimatePresence>
- */

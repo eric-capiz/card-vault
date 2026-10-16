@@ -14,13 +14,13 @@ import {
   type YGOCard,
 } from "@/lib/ygoprodeck";
 import { useAuth } from "@/components/AuthProvider";
-import { getSupabaseBrowser } from "@/lib/supabaseClient";
 import {
-  deleteDeck as dbDeleteDeck,
-  getDecks,
-  saveDeck as dbSaveDeck,
-  type DeckRow,
-} from "@/lib/db";
+  createDeck as apiCreateDeck,
+  deleteDeck as apiDeleteDeck,
+  fetchDecks as apiFetchDecks,
+  updateDeck as apiUpdateDeck,
+  type Deck as ApiDeck,
+} from "@/lib/api";
 import { NotConfiguredNotice } from "@/app/login/LoginForm";
 
 type Section = "main" | "extra" | "side";
@@ -36,7 +36,7 @@ const BAN_STYLES: Record<string, string> = {
   "Semi-Limited": "bg-yellow-500/85 text-black",
 };
 
-async function hydrateDeck(row: DeckRow): Promise<Deck> {
+async function hydrateDeck(row: ApiDeck): Promise<Deck> {
   const allIds = [...row.main, ...row.extra, ...row.side];
   const byId = new Map<number, DeckCard>();
   if (allIds.length > 0) {
@@ -90,14 +90,9 @@ export default function DecksPage() {
       if (configured && !authLoading) setPageLoading(false);
       return;
     }
-    const client = getSupabaseBrowser();
-    if (!client) {
-      setPageLoading(false);
-      return;
-    }
     (async () => {
       try {
-        const rows = await getDecks(client);
+        const rows = await apiFetchDecks();
         setDecks(await Promise.all(rows.map(hydrateDeck)));
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't load decks.");
@@ -112,12 +107,9 @@ export default function DecksPage() {
     [decks, activeId]
   );
 
-  /** Persist one deck's id arrays to Supabase; keeps local state in sync. */
+  /** Persist one deck's id arrays to the API; keeps local state in sync. */
   const persistDeck = async (deck: Deck): Promise<Deck> => {
-    const client = getSupabaseBrowser();
-    if (!client) throw new Error("Not connected.");
-    const saved = await dbSaveDeck(client, {
-      id: deck.id,
+    const saved = await apiUpdateDeck(deck.id, {
       name: deck.name,
       main: deck.main.map((c) => c.cardId),
       extra: deck.extra.map((c) => c.cardId),
@@ -144,11 +136,9 @@ export default function DecksPage() {
   const createDeck = async () => {
     const name = newName.trim();
     if (!name) return;
-    const client = getSupabaseBrowser();
-    if (!client) return;
     setNewName("");
     try {
-      const saved = await dbSaveDeck(client, { name, main: [], extra: [], side: [] });
+      const saved = await apiCreateDeck({ name, main: [], extra: [], side: [] });
       const d: Deck = { id: saved.id, name, main: [], extra: [], side: [], updatedAt: Date.now() };
       setDecks((prev) => [d, ...prev]);
       setActiveId(d.id);
@@ -159,10 +149,8 @@ export default function DecksPage() {
 
   const deleteDeck = async (id: string) => {
     if (!window.confirm("Delete this deck?")) return;
-    const client = getSupabaseBrowser();
-    if (!client) return;
     try {
-      await dbDeleteDeck(client, id);
+      await apiDeleteDeck(id);
       setDecks((prev) => prev.filter((d) => d.id !== id));
       if (activeId === id) setActiveId(null);
     } catch (e) {
@@ -227,8 +215,6 @@ export default function DecksPage() {
   };
 
   const importYdkFile = async (file: File) => {
-    const client = getSupabaseBrowser();
-    if (!client) return;
     setImporting(true);
     try {
       const text = await file.text();
@@ -249,7 +235,7 @@ export default function DecksPage() {
       const mainIds = parsed.main.slice(0, 60);
       const extraIds = parsed.extra.slice(0, 15);
       const sideIds = parsed.side.slice(0, 15);
-      const saved = await dbSaveDeck(client, { name, main: mainIds, extra: extraIds, side: sideIds });
+      const saved = await apiCreateDeck({ name, main: mainIds, extra: extraIds, side: sideIds });
       const missing = allIds.length - (mainIds.length + extraIds.length + sideIds.length);
       const d: Deck = {
         id: saved.id,
