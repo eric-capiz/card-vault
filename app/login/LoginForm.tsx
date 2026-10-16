@@ -4,7 +4,6 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getSupabaseBrowser } from "@/lib/supabaseClient";
 import { useAuth } from "@/components/AuthProvider";
 
 export function NotConfiguredNotice() {
@@ -12,8 +11,9 @@ export function NotConfiguredNotice() {
     <div className="panel border-amber-500/30! p-5 text-sm">
       <p className="font-display font-bold text-amber-200">Accounts aren't set up yet</p>
       <p className="mt-1.5 leading-relaxed text-amber-200/75">
-        This deployment doesn't have its database keys configured. Search, card details, and the
-        scanner all work without an account — log in will be available once setup is finished.
+        This deployment doesn't have its database keys configured (MONGODB_URI and
+        SESSION_SECRET). Search, card details, and the scanner all work without an
+        account — log in will be available once setup is finished.
       </p>
     </div>
   );
@@ -54,7 +54,7 @@ function AuthShell({ title, subtitle, children }: { title: string; subtitle: str
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { configured } = useAuth();
+  const { configured, refresh } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -65,17 +65,26 @@ export default function LoginForm() {
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
-    const client = getSupabaseBrowser();
-    if (!client) return;
     setBusy(true);
-    const { error } = await client.auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (error) {
-      setError(error.message);
-      return;
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Could not log in.");
+        return;
+      }
+      await refresh();
+      router.push(next);
+      router.refresh();
+    } catch {
+      setError("Could not log in. Try again.");
+    } finally {
+      setBusy(false);
     }
-    router.push(next);
-    router.refresh();
   };
 
   return (

@@ -6,15 +6,14 @@ import { motion } from "framer-motion";
 import CardTile from "@/components/CardTile";
 import CountUp from "@/components/CountUp";
 import { useAuth } from "@/components/AuthProvider";
-import { getSupabaseBrowser } from "@/lib/supabaseClient";
-import { getCollections, type CollectionWithCards } from "@/lib/db";
+import { fetchVault, type VaultCard } from "@/lib/api";
 import { formatMoney } from "@/lib/ygoprodeck";
 import { NotConfiguredNotice } from "@/app/login/LoginForm";
 
 export default function DashboardPage() {
   const router = useRouter();
   const { user, loading: authLoading, configured } = useAuth();
-  const [collections, setCollections] = useState<CollectionWithCards[]>([]);
+  const [cards, setCards] = useState<VaultCard[]>([]);
   const [pageLoading, setPageLoading] = useState(true);
 
   useEffect(() => {
@@ -28,31 +27,25 @@ export default function DashboardPage() {
       if (configured && !authLoading) setPageLoading(false);
       return;
     }
-    const client = getSupabaseBrowser();
-    if (!client) {
-      setPageLoading(false);
-      return;
-    }
-    getCollections(client)
-      .then(setCollections)
-      .catch(() => setCollections([]))
+    fetchVault()
+      .then(setCards)
+      .catch(() => setCards([]))
       .finally(() => setPageLoading(false));
   }, [configured, authLoading, user]);
 
   const stats = useMemo(() => {
-    const all = collections.flatMap((c) => c.cards);
-    const units = all.reduce((n, c) => n + c.qty, 0);
-    const value = all.reduce((n, c) => n + c.price * c.qty, 0);
+    const units = cards.reduce((n, c) => n + c.qty, 0);
+    const value = cards.reduce((n, c) => n + c.price * c.qty, 0);
 
     const rarityMap = new Map<string, number>();
     const archetypeMap = new Map<string, number>();
-    for (const c of all) {
+    for (const c of cards) {
       const r = c.rarity || "Unknown";
       rarityMap.set(r, (rarityMap.get(r) ?? 0) + c.qty);
       if (c.archetype) archetypeMap.set(c.archetype, (archetypeMap.get(c.archetype) ?? 0) + c.qty);
     }
 
-    const mostValuable = [...all]
+    const mostValuable = [...cards]
       .sort((a, b) => b.price * b.qty - a.price * a.qty)
       .slice(0, 10);
     const topArchetypes = [...archetypeMap.entries()]
@@ -61,8 +54,8 @@ export default function DashboardPage() {
     const rarityBreakdown = [...rarityMap.entries()].sort((a, b) => b[1] - a[1]);
     const maxRarity = Math.max(1, ...rarityBreakdown.map(([, n]) => n));
 
-    return { units, unique: all.length, value, mostValuable, topArchetypes, rarityBreakdown, maxRarity };
-  }, [collections]);
+    return { units, unique: cards.length, value, mostValuable, topArchetypes, rarityBreakdown, maxRarity };
+  }, [cards]);
 
   if (!configured) {
     return (
@@ -87,7 +80,7 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
-  if (collections.length === 0) {
+  if (cards.length === 0) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 24 }}
@@ -155,11 +148,9 @@ export default function DashboardPage() {
         <span className="text-foil">Dashboard</span>
       </h1>
       <p className="mt-1.5 text-sm text-fog">
-        Across {collections.length} collection{collections.length === 1 ? "" : "s"} · prices are
-        TCGplayer market snapshots from when cards were added
+        Your collection at a glance · prices are TCGplayer market snapshots from when cards were added
       </p>
 
-      {/* headline stats */}
       <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {headline.map((s, i) => (
           <motion.div
@@ -177,7 +168,6 @@ export default function DashboardPage() {
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        {/* rarity breakdown */}
         <motion.div
           initial={{ opacity: 0, y: 22 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -196,10 +186,7 @@ export default function DashboardPage() {
                 <div className="h-2 overflow-hidden rounded-full bg-white/6">
                   <motion.div
                     className="h-full rounded-full"
-                    style={{
-                      background:
-                        "linear-gradient(90deg,#a78bfa,#67e8f9,#f9a8d4)",
-                    }}
+                    style={{ background: "linear-gradient(90deg,#a78bfa,#67e8f9,#f9a8d4)" }}
                     initial={{ width: 0 }}
                     whileInView={{ width: `${(count / stats.maxRarity) * 100}%` }}
                     viewport={{ once: true, margin: "-30px" }}
@@ -211,7 +198,6 @@ export default function DashboardPage() {
           </div>
         </motion.div>
 
-        {/* top archetypes */}
         <motion.div
           initial={{ opacity: 0, y: 22 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -240,25 +226,22 @@ export default function DashboardPage() {
 
           <h2 className="font-display mt-8 text-lg font-bold text-paper">Collection Composition</h2>
           <div className="mt-4 grid grid-cols-3 gap-2.5 text-center">
-            <CompositionStats collections={collections} />
+            <CompositionStats cards={cards} />
           </div>
         </motion.div>
       </div>
 
-      {/* most valuable */}
       <h2 className="font-display mt-10 text-xl font-bold text-paper">
         Most Valuable Cards{" "}
         <span className="font-sans text-sm font-normal text-dim">by total value</span>
       </h2>
       <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5">
         {stats.mostValuable.map((c, i) => (
-          <div key={`${c.id}-${i}`} className="relative">
+          <div key={`${c.ygoId}-${i}`} className="relative">
             {i < 3 && (
               <span
                 className="absolute -top-2.5 left-2 z-10 rounded-md px-2 py-0.5 font-display text-xs font-bold text-obsidian shadow-lg"
-                style={{
-                  background: "linear-gradient(135deg,#c4b5fd,#67e8f9)",
-                }}
+                style={{ background: "linear-gradient(135deg,#c4b5fd,#67e8f9)" }}
               >
                 #{i + 1}
               </span>
@@ -267,7 +250,7 @@ export default function DashboardPage() {
               index={i}
               imageSmall={c.imageSmall}
               name={c.name}
-              type={c.type}
+              type={c.cardType}
               price={c.price * c.qty}
               qty={c.qty}
               badge={c.rarity ?? undefined}
@@ -280,15 +263,14 @@ export default function DashboardPage() {
   );
 }
 
-function CompositionStats({ collections }: { collections: CollectionWithCards[] }) {
+function CompositionStats({ cards }: { cards: VaultCard[] }) {
   const comp = useMemo(() => {
-    const all = collections.flatMap((c) => c.cards);
     let monsters = 0,
       spells = 0,
       traps = 0;
-    for (const c of all) {
-      if (c.type.includes("Spell")) spells += c.qty;
-      else if (c.type.includes("Trap")) traps += c.qty;
+    for (const c of cards) {
+      if (c.cardType.includes("Spell")) spells += c.qty;
+      else if (c.cardType.includes("Trap")) traps += c.qty;
       else monsters += c.qty;
     }
     const total = Math.max(1, monsters + spells + traps);
@@ -297,7 +279,7 @@ function CompositionStats({ collections }: { collections: CollectionWithCards[] 
       { label: "Spells", n: spells, pct: (spells / total) * 100, color: "#2e9e5b" },
       { label: "Traps", n: traps, pct: (traps / total) * 100, color: "#f9a8d4" },
     ];
-  }, [collections]);
+  }, [cards]);
 
   return (
     <>

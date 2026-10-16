@@ -4,40 +4,43 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { getSupabaseBrowser } from "@/lib/supabaseClient";
 import { useAuth } from "@/components/AuthProvider";
 import { NotConfiguredNotice } from "@/app/login/LoginForm";
 
 export default function SignupPage() {
   const router = useRouter();
-  const { configured } = useAuth();
+  const { configured, refresh } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [checkEmail, setCheckEmail] = useState(false);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
-    const client = getSupabaseBrowser();
-    if (!client) return;
-    if (password.length < 6) {
-      setError("Password needs to be at least 6 characters.");
+    if (password.length < 8) {
+      setError("Password needs to be at least 8 characters.");
       return;
     }
     setBusy(true);
-    const { data, error } = await client.auth.signUp({ email, password });
-    setBusy(false);
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    if (data.session) {
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Could not create account.");
+        return;
+      }
+      await refresh();
       router.push("/vault");
       router.refresh();
-    } else {
-      setCheckEmail(true);
+    } catch {
+      setError("Could not create account. Try again.");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -71,17 +74,6 @@ export default function SignupPage() {
 
         {!configured ? (
           <NotConfiguredNotice />
-        ) : checkEmail ? (
-          <div className="panel border-foil-violet/30! p-5 text-center">
-            <p className="font-display text-lg font-bold text-paper">Check your inbox</p>
-            <p className="mt-2 text-sm text-fog">
-              We sent a confirmation link to <b className="text-paper">{email}</b>. Click it, then
-              come back and log in.
-            </p>
-            <Link href="/login" className="btn-foil mt-4 inline-block px-6 py-2.5 text-sm">
-              Go to Log In
-            </Link>
-          </div>
         ) : (
           <form onSubmit={onSubmit} className="space-y-4">
             <div>

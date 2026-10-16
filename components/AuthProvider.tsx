@@ -8,63 +8,78 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { SupabaseClient, User } from "@supabase/supabase-js";
-import { getSupabaseBrowser, isSupabaseConfigured } from "@/lib/supabaseClient";
+
+interface AuthUser {
+  email: string;
+}
 
 interface AuthContextValue {
-  user: User | null;
+  user: AuthUser | null;
   loading: boolean;
-  /** False until Supabase env vars are added — app stays usable, auth pages explain. */
+  /** False until MONGODB_URI + SESSION_SECRET are set — app stays usable, auth pages explain. */
   configured: boolean;
   signOut: () => Promise<void>;
+  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
   loading: true,
-  configured: false,
+  configured: true,
   signOut: async () => {},
+  refresh: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const configured = isSupabaseConfigured();
+  const [configured, setConfigured] = useState(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/session", { cache: "no-store" });
+      if (!res.ok) {
+        setUser(null);
+        return;
+      }
+      const data = await res.json();
+      setUser(data.user ?? null);
+    } catch {
+      setUser(null);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!configured) {
-      setLoading(false);
-      return;
-    }
-    const client: SupabaseClient | null = getSupabaseBrowser();
-    if (!client) {
-      setLoading(false);
-      return;
-    }
     let mounted = true;
-    client.auth.getSession().then(({ data }) => {
-      if (mounted) {
-        setUser(data.session?.user ?? null);
-        setLoading(false);
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/signup", { cache: "no-store" });
+        if (mounted && res.ok) {
+          const data = await res.json();
+          setConfigured(data.configured !== false);
+        }
+      } catch {
+        /* session check below still runs */
       }
-    });
-    const { data: sub } = client.auth.onAuthStateChange((_event, session) => {
-      if (mounted) setUser(session?.user ?? null);
-    });
+      await refresh();
+      if (mounted) setLoading(false);
+    })();
     return () => {
       mounted = false;
-      sub.subscription.unsubscribe();
     };
-  }, [configured]);
+  }, [refresh]);
 
   const signOut = useCallback(async () => {
-    const client = getSupabaseBrowser();
-    if (client) await client.auth.signOut();
+    try {
+      await fetch("/api/auth/session", { method: "POST" });
+    } catch {
+      /* ignore */
+    }
     setUser(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, configured, signOut }}>
+    <AuthContext.Provider value={{ user, loading, configured, signOut, refresh }}>
       {children}
     </AuthContext.Provider>
   );

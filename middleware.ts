@@ -1,4 +1,4 @@
-import { createServerClient } from "@supabase/ssr";
+import { jwtVerify } from "jose";
 import { NextResponse, type NextRequest } from "next/server";
 
 /** Routes that require a logged-in user. */
@@ -10,40 +10,34 @@ function isProtected(pathname: string): boolean {
   );
 }
 
+async function hasValidSession(req: NextRequest): Promise<boolean> {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) return false;
+  const token = req.cookies.get("card-vault-session")?.value;
+  if (!token) return false;
+  try {
+    await jwtVerify(token, new TextEncoder().encode(secret));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next({ request: { headers: req.headers } });
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  // Not configured yet — let everything through; pages handle it gracefully.
-  if (!url || !key) return res;
-
-  const supabase = createServerClient(url, key, {
-    cookies: {
-      getAll() {
-        return req.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) =>
-          res.cookies.set(name, value, options)
-        );
-      },
-    },
-  });
-
-  // Refresh the session cookie on every request.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user && isProtected(req.nextUrl.pathname)) {
+  if (!isProtected(req.nextUrl.pathname)) {
+    return NextResponse.next();
+  }
+  // Auth not configured — let the page render its "not set up" notice.
+  if (!process.env.MONGODB_URI || !process.env.SESSION_SECRET) {
+    return NextResponse.next();
+  }
+  if (!(await hasValidSession(req))) {
     const loginUrl = req.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("next", req.nextUrl.pathname);
     return NextResponse.redirect(loginUrl);
   }
-
-  return res;
+  return NextResponse.next();
 }
 
 export const config = {
