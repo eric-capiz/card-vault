@@ -1,7 +1,6 @@
-// Legacy localStorage helpers.
-// The vault, decks and dashboard now live in Supabase per user. This module
-// remains for two jobs: reading pre-account local data for the one-click
-// migration, and the downloadFile helper used by XLSX/JSON/.ydk exports.
+// Client-side persistence — everything lives in the browser's localStorage.
+// No accounts, no database, no backend. Search, card details, and the scanner
+// work entirely off the free YGOPRODeck API.
 
 export interface VaultCard {
   cardId: number;
@@ -81,6 +80,25 @@ export function clearLocalVaultData(): void {
   } catch {
     // ignore
   }
+}
+
+function write(key: string, value: unknown): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ignore (private mode, quota, etc.)
+  }
+}
+
+/** Persist vault collections. */
+export function saveCollections(collections: Collection[]): void {
+  write(COLLECTIONS_KEY, collections);
+}
+
+/** Persist decks. */
+export function saveDecks(decks: Deck[]): void {
+  write(DECKS_KEY, decks);
 }
 
 export function downloadFile(filename: string, content: string | Blob, mime = "text/plain"): void {

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   imageSmall,
@@ -10,17 +9,27 @@ import {
   formatMoney,
   type YGOCard,
 } from "@/lib/ygoprodeck";
-import { useAuth } from "@/components/AuthProvider";
-import { fetchVault, saveVault, type VaultCard } from "@/lib/api";
+import {
+  loadCollections,
+  saveCollections,
+  type Collection,
+  type VaultCard,
+} from "@/lib/storage";
 
 interface AddToVaultModalProps {
   card: YGOCard;
   onClose: () => void;
-  onAdded?: () => void;
+  onAdded?: (collectionId: string) => void;
+}
+
+function uid(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export default function AddToVaultModal({ card, onClose, onAdded }: AddToVaultModalProps) {
-  const { user, loading: authLoading, configured } = useAuth();
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [newName, setNewName] = useState("");
   const [qty, setQty] = useState(1);
   const [setIndex, setSetIndex] = useState(0);
   const [done, setDone] = useState(false);
@@ -29,6 +38,12 @@ export default function AddToVaultModal({ card, onClose, onAdded }: AddToVaultMo
 
   const sets = useMemo(() => card.card_sets ?? [], [card]);
   const chosen = sets[setIndex];
+
+  useEffect(() => {
+    const data = loadCollections();
+    setCollections(data);
+    setSelectedId(data[0]?.id ?? "");
+  }, []);
 
   // lock body scroll + close on Escape
   useEffect(() => {
@@ -46,29 +61,45 @@ export default function AddToVaultModal({ card, onClose, onAdded }: AddToVaultMo
     setBusy(true);
     setError("");
     try {
-      const cards = await fetchVault();
-      const existing = cards.find((c) => c.ygoId === card.id);
+      const all = loadCollections();
+      let targetId = selectedId;
+      let target = all.find((c) => c.id === targetId);
+      if (!target) {
+        target = {
+          id: uid(),
+          name: newName.trim() || "My Collection",
+          description: "",
+          cards: [],
+          createdAt: Date.now(),
+        };
+        targetId = target.id;
+        all.unshift(target);
+      }
       const entry: VaultCard = {
-        ygoId: card.id,
+        cardId: card.id,
         name: card.name,
-        qty: qty + (existing?.qty ?? 0),
+        qty,
         setCode: chosen?.set_code,
         rarity: chosen?.set_rarity,
         price: tcgPrice(card),
         imageSmall: imageSmall(card),
-        cardType: card.type,
+        type: card.type,
         frameType: card.frameType,
         attribute: card.attribute,
         race: card.race,
         archetype: card.archetype,
         setName: chosen?.set_name,
       };
-      const next = existing
-        ? cards.map((c) => (c.ygoId === card.id ? entry : c))
-        : [...cards, entry];
-      await saveVault(next);
+      const existing = target.cards.find((c) => c.cardId === card.id);
+      if (existing) {
+        existing.qty = Math.min(99, existing.qty + qty);
+      } else {
+        target.cards.push(entry);
+      }
+      saveCollections(all);
+      setCollections(all);
       setDone(true);
-      onAdded?.();
+      onAdded?.(targetId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't add the card.");
     } finally {
@@ -96,38 +127,7 @@ export default function AddToVaultModal({ card, onClose, onAdded }: AddToVaultMo
         exit={{ opacity: 0, scale: 0.95, y: 14 }}
         transition={{ type: "spring", stiffness: 380, damping: 30 }}
       >
-        {!configured || (!authLoading && !user) ? (
-          <div className="py-6 text-center">
-            <div
-              className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl text-2xl text-obsidian"
-              style={{
-                background:
-                  "linear-gradient(135deg,#c4b5fd,#a78bfa 35%,#67e8f9 70%,#f9a8d4)",
-              }}
-              aria-hidden
-            >
-              ◆
-            </div>
-            <h3 className="font-display text-lg font-bold text-paper">
-              {!configured ? "Accounts aren't set up yet" : "Log in to save cards"}
-            </h3>
-            <p className="mx-auto mt-2 max-w-xs text-sm text-fog">
-              {!configured
-                ? "This deployment doesn't have its database keys configured yet (MONGODB_URI and SESSION_SECRET). Card search and details still work — saving will be available once setup is finished."
-                : "Your vault is private to your account. Log in or create a free account to start collecting."}
-            </p>
-            <div className="mt-6 flex justify-center gap-2">
-              <button onClick={onClose} className="btn-ghost px-5 py-2.5 text-sm">
-                Close
-              </button>
-              {configured && (
-                <Link href="/login" className="btn-foil px-5 py-2.5 text-sm">
-                  Log In
-                </Link>
-              )}
-            </div>
-          </div>
-        ) : done ? (
+        {done ? (
           <div className="py-8 text-center">
             <motion.div
               className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-emerald-400/15 text-3xl text-emerald-300"
@@ -159,73 +159,94 @@ export default function AddToVaultModal({ card, onClose, onAdded }: AddToVaultMo
               </div>
             </div>
 
-            {authLoading ? (
-              <p className="py-4 text-center text-sm text-fog">Loading…</p>
-            ) : (
+            <label className="eyebrow mb-1.5 block" htmlFor="av-collection">
+              Collection
+            </label>
+            {collections.length > 0 ? (
+              <select
+                id="av-collection"
+                value={selectedId}
+                onChange={(e) => setSelectedId(e.target.value)}
+                className="field mb-3 w-full px-3 py-2.5 text-sm"
+              >
+                {collections.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.cards.reduce((n, x) => n + x.qty, 0)} cards)
+                  </option>
+                ))}
+                <option value="">+ New collection…</option>
+              </select>
+            ) : null}
+            {(selectedId === "" || collections.length === 0) && (
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="New collection name"
+                className="field mb-3 w-full px-3 py-2.5 text-sm"
+              />
+            )}
+
+            {sets.length > 0 && (
               <>
-                {sets.length > 0 && (
-                  <>
-                    <label className="eyebrow mb-1.5 block" htmlFor="av-printing">
-                      Printing / rarity
-                    </label>
-                    <select
-                      id="av-printing"
-                      value={setIndex}
-                      onChange={(e) => setSetIndex(Number(e.target.value))}
-                      className="field mb-3 w-full px-3 py-2.5 text-sm"
-                    >
-                      {sets.map((s, i) => (
-                        <option key={`${s.set_code}-${i}`} value={i}>
-                          {s.set_rarity} — {s.set_code}
-                        </option>
-                      ))}
-                    </select>
-                  </>
-                )}
-
-                <span className="eyebrow mb-1.5 block" id="av-qty-label">
-                  Quantity
-                </span>
-                <div className="mb-5 flex items-center gap-3" role="group" aria-labelledby="av-qty-label">
-                  <button
-                    onClick={() => setQty(Math.max(1, qty - 1))}
-                    className="btn-ghost grid h-9 w-9 place-items-center text-lg"
-                    aria-label="Decrease quantity"
-                  >
-                    −
-                  </button>
-                  <span className="w-10 text-center font-display text-lg font-extrabold text-paper" aria-live="polite">
-                    {qty}
-                  </span>
-                  <button
-                    onClick={() => setQty(Math.min(99, qty + 1))}
-                    className="btn-ghost grid h-9 w-9 place-items-center text-lg"
-                    aria-label="Increase quantity"
-                  >
-                    +
-                  </button>
-                </div>
-
-                {error && (
-                  <p className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
-                    {error}
-                  </p>
-                )}
-
-                <div className="flex gap-2">
-                  <button onClick={onClose} className="btn-ghost flex-1 px-4 py-2.5 text-sm">
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleAdd}
-                    disabled={busy}
-                    className="btn-foil flex-1 px-4 py-2.5 text-sm"
-                  >
-                    {busy ? "Adding…" : "Add to Vault"}
-                  </button>
-                </div>
+                <label className="eyebrow mb-1.5 block" htmlFor="av-printing">
+                  Printing / rarity
+                </label>
+                <select
+                  id="av-printing"
+                  value={setIndex}
+                  onChange={(e) => setSetIndex(Number(e.target.value))}
+                  className="field mb-3 w-full px-3 py-2.5 text-sm"
+                >
+                  {sets.map((s, i) => (
+                    <option key={`${s.set_code}-${i}`} value={i}>
+                      {s.set_rarity} — {s.set_code}
+                    </option>
+                  ))}
+                </select>
               </>
             )}
+
+            <span className="eyebrow mb-1.5 block" id="av-qty-label">
+              Quantity
+            </span>
+            <div className="mb-5 flex items-center gap-3" role="group" aria-labelledby="av-qty-label">
+              <button
+                onClick={() => setQty(Math.max(1, qty - 1))}
+                className="btn-ghost grid h-9 w-9 place-items-center text-lg"
+                aria-label="Decrease quantity"
+              >
+                −
+              </button>
+              <span className="w-10 text-center font-display text-lg font-extrabold text-paper" aria-live="polite">
+                {qty}
+              </span>
+              <button
+                onClick={() => setQty(Math.min(99, qty + 1))}
+                className="btn-ghost grid h-9 w-9 place-items-center text-lg"
+                aria-label="Increase quantity"
+              >
+                +
+              </button>
+            </div>
+
+            {error && (
+              <p className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                {error}
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <button onClick={onClose} className="btn-ghost flex-1 px-4 py-2.5 text-sm">
+                Cancel
+              </button>
+              <button
+                onClick={handleAdd}
+                disabled={busy}
+                className="btn-foil flex-1 px-4 py-2.5 text-sm"
+              >
+                {busy ? "Adding…" : "Add to Vault"}
+              </button>
+            </div>
           </>
         )}
       </motion.div>

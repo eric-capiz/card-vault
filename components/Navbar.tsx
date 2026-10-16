@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { usePathname, useRouter } from "next/navigation";
-import { useAuth } from "@/components/AuthProvider";
+import { usePathname } from "next/navigation";
 
 const LINKS = [
   { href: "/", label: "Home" },
@@ -16,14 +15,6 @@ const LINKS = [
 
 export default function Navbar() {
   const pathname = usePathname();
-  const router = useRouter();
-  const { user, loading, configured, signOut } = useAuth();
-
-  const handleSignOut = async () => {
-    await signOut();
-    router.push("/");
-    router.refresh();
-  };
 
   return (
     <header className="sticky top-0 z-40 border-b border-white/8 bg-obsidian/85 backdrop-blur-xl">
@@ -71,36 +62,6 @@ export default function Navbar() {
             );
           })}
         </nav>
-
-        <div className="ml-1 flex shrink-0 items-center gap-2 border-l border-white/10 pl-3">
-          {loading ? (
-            <span className="skeleton h-8 w-16" aria-hidden />
-          ) : user && configured ? (
-            <>
-              <span
-                className="hidden max-w-[140px] truncate text-xs font-semibold text-fog lg:block"
-                title={user.email ?? ""}
-              >
-                {user.email}
-              </span>
-              <button onClick={handleSignOut} className="btn-ghost whitespace-nowrap px-3 py-1.5 text-xs">
-                Sign out
-              </button>
-            </>
-          ) : (
-            <>
-              <Link
-                href="/login"
-                className="whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-bold text-fog transition hover:bg-white/5 hover:text-paper"
-              >
-                Log in
-              </Link>
-              <Link href="/signup" className="btn-foil whitespace-nowrap px-3.5 py-1.5 text-xs">
-                Sign up
-              </Link>
-            </>
-          )}
-        </div>
       </div>
     </header>
   );

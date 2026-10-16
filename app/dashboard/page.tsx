@@ -5,47 +5,33 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import CardTile from "@/components/CardTile";
 import CountUp from "@/components/CountUp";
-import { useAuth } from "@/components/AuthProvider";
-import { fetchVault, type VaultCard } from "@/lib/api";
+import { loadCollections, type Collection } from "@/lib/storage";
 import { formatMoney } from "@/lib/ygoprodeck";
-import { NotConfiguredNotice } from "@/app/login/LoginForm";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, loading: authLoading, configured } = useAuth();
-  const [cards, setCards] = useState<VaultCard[]>([]);
-  const [pageLoading, setPageLoading] = useState(true);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (configured && !authLoading && !user) {
-      router.replace("/login?next=/dashboard");
-    }
-  }, [configured, authLoading, user, router]);
-
-  useEffect(() => {
-    if (!configured || authLoading || !user) {
-      if (configured && !authLoading) setPageLoading(false);
-      return;
-    }
-    fetchVault()
-      .then(setCards)
-      .catch(() => setCards([]))
-      .finally(() => setPageLoading(false));
-  }, [configured, authLoading, user]);
+    setCollections(loadCollections());
+    setLoaded(true);
+  }, []);
 
   const stats = useMemo(() => {
-    const units = cards.reduce((n, c) => n + c.qty, 0);
-    const value = cards.reduce((n, c) => n + c.price * c.qty, 0);
+    const all = collections.flatMap((c) => c.cards);
+    const units = all.reduce((n, c) => n + c.qty, 0);
+    const value = all.reduce((n, c) => n + c.price * c.qty, 0);
 
     const rarityMap = new Map<string, number>();
     const archetypeMap = new Map<string, number>();
-    for (const c of cards) {
+    for (const c of all) {
       const r = c.rarity || "Unknown";
       rarityMap.set(r, (rarityMap.get(r) ?? 0) + c.qty);
       if (c.archetype) archetypeMap.set(c.archetype, (archetypeMap.get(c.archetype) ?? 0) + c.qty);
     }
 
-    const mostValuable = [...cards]
+    const mostValuable = [...all]
       .sort((a, b) => b.price * b.qty - a.price * a.qty)
       .slice(0, 10);
     const topArchetypes = [...archetypeMap.entries()]
@@ -54,18 +40,10 @@ export default function DashboardPage() {
     const rarityBreakdown = [...rarityMap.entries()].sort((a, b) => b[1] - a[1]);
     const maxRarity = Math.max(1, ...rarityBreakdown.map(([, n]) => n));
 
-    return { units, unique: cards.length, value, mostValuable, topArchetypes, rarityBreakdown, maxRarity };
-  }, [cards]);
+    return { units, unique: all.length, value, mostValuable, topArchetypes, rarityBreakdown, maxRarity };
+  }, [collections]);
 
-  if (!configured) {
-    return (
-      <div className="mx-auto max-w-md pt-16">
-        <NotConfiguredNotice />
-      </div>
-    );
-  }
-
-  if (authLoading || pageLoading) {
+  if (!loaded) {
     return (
       <div className="pt-10" aria-hidden>
         <div className="skeleton h-9 w-48" />
@@ -78,9 +56,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (!user) return null;
-
-  if (cards.length === 0) {
+  if (collections.length === 0) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 24 }}
@@ -148,7 +124,8 @@ export default function DashboardPage() {
         <span className="text-foil">Dashboard</span>
       </h1>
       <p className="mt-1.5 text-sm text-fog">
-        Your collection at a glance · prices are TCGplayer market snapshots from when cards were added
+        Across {collections.length} collection{collections.length === 1 ? "" : "s"} · prices are
+        TCGplayer market snapshots from when cards were added
       </p>
 
       <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -226,7 +203,7 @@ export default function DashboardPage() {
 
           <h2 className="font-display mt-8 text-lg font-bold text-paper">Collection Composition</h2>
           <div className="mt-4 grid grid-cols-3 gap-2.5 text-center">
-            <CompositionStats cards={cards} />
+            <CompositionStats collections={collections} />
           </div>
         </motion.div>
       </div>
@@ -237,7 +214,7 @@ export default function DashboardPage() {
       </h2>
       <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5">
         {stats.mostValuable.map((c, i) => (
-          <div key={`${c.ygoId}-${i}`} className="relative">
+          <div key={`${c.cardId}-${i}`} className="relative">
             {i < 3 && (
               <span
                 className="absolute -top-2.5 left-2 z-10 rounded-md px-2 py-0.5 font-display text-xs font-bold text-obsidian shadow-lg"
@@ -250,11 +227,11 @@ export default function DashboardPage() {
               index={i}
               imageSmall={c.imageSmall}
               name={c.name}
-              type={c.cardType}
+              type={c.type}
               price={c.price * c.qty}
               qty={c.qty}
               badge={c.rarity ?? undefined}
-              onClick={() => router.push(`/card/${c.ygoId}`)}
+              onClick={() => router.push(`/card/${c.cardId}`)}
             />
           </div>
         ))}
@@ -263,14 +240,15 @@ export default function DashboardPage() {
   );
 }
 
-function CompositionStats({ cards }: { cards: VaultCard[] }) {
+function CompositionStats({ collections }: { collections: Collection[] }) {
   const comp = useMemo(() => {
+    const all = collections.flatMap((c) => c.cards);
     let monsters = 0,
       spells = 0,
       traps = 0;
-    for (const c of cards) {
-      if (c.cardType.includes("Spell")) spells += c.qty;
-      else if (c.cardType.includes("Trap")) traps += c.qty;
+    for (const c of all) {
+      if (c.type.includes("Spell")) spells += c.qty;
+      else if (c.type.includes("Trap")) traps += c.qty;
       else monsters += c.qty;
     }
     const total = Math.max(1, monsters + spells + traps);
@@ -279,7 +257,7 @@ function CompositionStats({ cards }: { cards: VaultCard[] }) {
       { label: "Spells", n: spells, pct: (spells / total) * 100, color: "#2e9e5b" },
       { label: "Traps", n: traps, pct: (traps / total) * 100, color: "#f9a8d4" },
     ];
-  }, [cards]);
+  }, [collections]);
 
   return (
     <>

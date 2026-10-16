@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { downloadFile, type Deck, type DeckCard } from "@/lib/storage";
+import { downloadFile, loadDecks, saveDecks, type Deck, type DeckCard } from "@/lib/storage";
 import { exportYdk, parseYdk, toDeckCard } from "@/lib/ydk";
 import {
   getCardsByIds,
@@ -13,15 +13,6 @@ import {
   searchCards,
   type YGOCard,
 } from "@/lib/ygoprodeck";
-import { useAuth } from "@/components/AuthProvider";
-import {
-  createDeck as apiCreateDeck,
-  deleteDeck as apiDeleteDeck,
-  fetchDecks as apiFetchDecks,
-  updateDeck as apiUpdateDeck,
-  type Deck as ApiDeck,
-} from "@/lib/api";
-import { NotConfiguredNotice } from "@/app/login/LoginForm";
 
 type Section = "main" | "extra" | "side";
 const LIMITS: Record<Section, { min: number; max: number; label: string }> = {
@@ -36,7 +27,7 @@ const BAN_STYLES: Record<string, string> = {
   "Semi-Limited": "bg-yellow-500/85 text-black",
 };
 
-async function hydrateDeck(row: ApiDeck): Promise<Deck> {
+async function hydrateDeck(row: { id: string; name: string; main: number[]; extra: number[]; side: number[] }): Promise<Deck> {
   const allIds = [...row.main, ...row.extra, ...row.side];
   const byId = new Map<number, DeckCard>();
   if (allIds.length > 0) {
@@ -64,11 +55,14 @@ async function hydrateDeck(row: ApiDeck): Promise<Deck> {
   };
 }
 
+function uid(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export default function DecksPage() {
   const router = useRouter();
-  const { user, loading: authLoading, configured } = useAuth();
   const [decks, setDecks] = useState<Deck[]>([]);
-  const [pageLoading, setPageLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
@@ -80,82 +74,49 @@ export default function DecksPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (configured && !authLoading && !user) {
-      router.replace("/login?next=/decks");
-    }
-  }, [configured, authLoading, user, router]);
-
-  useEffect(() => {
-    if (!configured || authLoading || !user) {
-      if (configured && !authLoading) setPageLoading(false);
-      return;
-    }
-    (async () => {
-      try {
-        const rows = await apiFetchDecks();
-        setDecks(await Promise.all(rows.map(hydrateDeck)));
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Couldn't load decks.");
-      } finally {
-        setPageLoading(false);
-      }
-    })();
-  }, [configured, authLoading, user]);
+    setDecks(loadDecks());
+    setLoaded(true);
+  }, []);
 
   const active: Deck | null = useMemo(
     () => decks.find((d) => d.id === activeId) ?? decks[0] ?? null,
     [decks, activeId]
   );
 
-  /** Persist one deck's id arrays to the API; keeps local state in sync. */
-  const persistDeck = async (deck: Deck): Promise<Deck> => {
-    const saved = await apiUpdateDeck(deck.id, {
-      name: deck.name,
-      main: deck.main.map((c) => c.cardId),
-      extra: deck.extra.map((c) => c.cardId),
-      side: deck.side.map((c) => c.cardId),
-    });
-    const next: Deck = { ...deck, id: saved.id, updatedAt: Date.now() };
-    setDecks((prev) => {
-      const exists = prev.some((d) => d.id === deck.id);
-      const mapped = prev.map((d) => (d.id === deck.id ? next : d));
-      return exists ? mapped : [next, ...prev];
-    });
+  /** Persist decks to localStorage; keeps state in sync. */
+  const persistDecks = (next: Deck[]) => {
+    setDecks(next);
+    saveDecks(next);
+  };
+
+  const persistDeck = (deck: Deck): Deck => {
+    const next: Deck = { ...deck, updatedAt: Date.now() };
+    persistDecks(
+      decks.some((d) => d.id === deck.id)
+        ? decks.map((d) => (d.id === deck.id ? next : d))
+        : [next, ...decks]
+    );
     return next;
   };
 
   const updateActive = (fn: (d: Deck) => Deck) => {
     if (!active) return;
-    const next = fn(active);
-    setDecks((prev) => prev.map((d) => (d.id === active.id ? next : d)));
-    persistDeck(next).catch((e) =>
-      setError(e instanceof Error ? e.message : "Couldn't save deck.")
-    );
+    persistDeck(fn(active));
   };
 
-  const createDeck = async () => {
+  const createDeck = () => {
     const name = newName.trim();
     if (!name) return;
+    const d: Deck = { id: uid(), name, main: [], extra: [], side: [], updatedAt: Date.now() };
+    persistDecks([d, ...decks]);
+    setActiveId(d.id);
     setNewName("");
-    try {
-      const saved = await apiCreateDeck({ name, main: [], extra: [], side: [] });
-      const d: Deck = { id: saved.id, name, main: [], extra: [], side: [], updatedAt: Date.now() };
-      setDecks((prev) => [d, ...prev]);
-      setActiveId(d.id);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't create deck.");
-    }
   };
 
-  const deleteDeck = async (id: string) => {
+  const deleteDeck = (id: string) => {
     if (!window.confirm("Delete this deck?")) return;
-    try {
-      await apiDeleteDeck(id);
-      setDecks((prev) => prev.filter((d) => d.id !== id));
-      if (activeId === id) setActiveId(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't delete deck.");
-    }
+    persistDecks(decks.filter((d) => d.id !== id));
+    if (activeId === id) setActiveId(null);
   };
 
   const copiesInDeck = (deck: Deck, cardId: number): number =>
@@ -235,17 +196,16 @@ export default function DecksPage() {
       const mainIds = parsed.main.slice(0, 60);
       const extraIds = parsed.extra.slice(0, 15);
       const sideIds = parsed.side.slice(0, 15);
-      const saved = await apiCreateDeck({ name, main: mainIds, extra: extraIds, side: sideIds });
       const missing = allIds.length - (mainIds.length + extraIds.length + sideIds.length);
       const d: Deck = {
-        id: saved.id,
+        id: uid(),
         name,
         main: push(mainIds),
         extra: push(extraIds),
         side: push(sideIds),
         updatedAt: Date.now(),
       };
-      setDecks((prev) => [d, ...prev]);
+      persistDecks([d, ...decks]);
       setActiveId(d.id);
       window.alert(
         missing > 0
@@ -286,15 +246,7 @@ export default function DecksPage() {
     );
   };
 
-  if (!configured) {
-    return (
-      <div className="mx-auto max-w-md pt-16">
-        <NotConfiguredNotice />
-      </div>
-    );
-  }
-
-  if (authLoading || pageLoading) {
+  if (!loaded) {
     return (
       <div className="pt-10" aria-hidden>
         <div className="skeleton h-9 w-48" />
@@ -306,8 +258,6 @@ export default function DecksPage() {
       </div>
     );
   }
-
-  if (!user) return null;
 
   return (
     <div className="pt-8 sm:pt-10">
