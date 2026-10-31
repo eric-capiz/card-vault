@@ -7,21 +7,57 @@ import { Page } from "@/models/Page";
 import { NotebookCreator } from "@/components/NotebookCreator";
 import { NotebookCard } from "@/components/NotebookCard";
 
+function FeatureStrip() {
+  return (
+    <div className="feature-grid">
+      <div className="card">
+        <h3>Chapters &amp; pages</h3>
+        <p className="muted">
+          Every notebook breaks into chapters, and every chapter into pages.
+          Organize by subject, your way.
+        </p>
+      </div>
+      <div className="card">
+        <h3>Notes, images &amp; files</h3>
+        <p className="muted">
+          Each page holds text notes, images, and PDFs up to 10 MB.
+        </p>
+      </div>
+      <div className="card">
+        <h3>Highlighter</h3>
+        <p className="muted">
+          Select any text to highlight it in four colors, then revisit every
+          highlight from one view.
+        </p>
+      </div>
+      <div className="card">
+        <h3>Search everything</h3>
+        <p className="muted">
+          Search across notebooks, chapters, pages, and note text in one place.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default async function Home() {
   const session = await getSession();
   if (!session) {
     return (
       <div className="stack">
-        <h1>Your notebooks, your way.</h1>
-        <p className="muted">
-          Notebooks for any subject you want. Chapters inside them, pages inside
-          those, and on every page: notes, images, files — plus a highlighter
-          for what matters most.
-        </p>
-        <div className="row">
-          <Link href="/login" className="btn btn-primary">Log in</Link>
-          <Link href="/signup" className="btn">Sign up</Link>
+        <div className="hero stack">
+          <h1>Your notebooks, your way.</h1>
+          <p className="muted">
+            Notebooks for any subject you want. Chapters inside them, pages inside
+            those, and on every page: notes, images, files — plus a highlighter
+            for what matters most.
+          </p>
+          <div className="row">
+            <Link href="/login" className="btn btn-primary">Log in</Link>
+            <Link href="/signup" className="btn">Sign up</Link>
+          </div>
         </div>
+        <FeatureStrip />
       </div>
     );
   }
@@ -51,9 +87,12 @@ export default async function Home() {
       <h1>Notebooks</h1>
       <NotebookCreator />
       {notebookList.length === 0 ? (
-        <p className="muted">
-          No notebooks yet. Create your first one above — name it any subject you like.
-        </p>
+        <>
+          <p className="muted">
+            No notebooks yet. Create your first one above — name it any subject you like.
+          </p>
+          <FeatureStrip />
+        </>
       ) : (
         <div className="notebook-grid">
           {notebookList.map((nb) => (
