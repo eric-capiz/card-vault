@@ -1,5 +1,10 @@
 "use client";
 
+export const TAB_COLORS = [
+  "#ef4444", "#f97316", "#eab308", "#22c55e", "#14b8a6",
+  "#3b82f6", "#a855f7", "#ec4899", "#84cc16", "#06b6d4",
+];
+
 export const COVER_COLORS = [
   "#4f7cff",
   "#ef4444",

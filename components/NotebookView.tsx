@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ColorPicker } from "./ColorPicker";
+import { ColorPicker, TAB_COLORS } from "./ColorPicker";
 
 type ChapterT = { _id: string; title: string; order: number };
 type PageT = { _id: string; title: string; order: number };
@@ -14,11 +14,6 @@ type HighlightT = {
   pageTitle: string;
   chapterTitle: string;
 };
-
-const TAB_COLORS = [
-  "#ef4444", "#f97316", "#eab308", "#22c55e", "#14b8a6",
-  "#3b82f6", "#a855f7", "#ec4899", "#84cc16", "#06b6d4",
-];
 
 async function api(path: string, init?: RequestInit) {
   const res = await fetch(path, {

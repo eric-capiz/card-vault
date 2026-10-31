@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { TAB_COLORS } from "./ColorPicker";
 
 export function NotebookCard({
   notebook,
@@ -37,6 +38,15 @@ export function NotebookCard({
             Delete
           </button>
         </div>
+      </div>
+      <div className="book-tabs">
+        {Array.from({ length: Math.min(chapters, 8) }).map((_, i) => (
+          <span
+            key={i}
+            className="book-tab"
+            style={{ backgroundColor: TAB_COLORS[i % TAB_COLORS.length] }}
+          />
+        ))}
       </div>
     </div>
   );
