@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { connectDB, toPlain } from "@/lib/mongodb";
 import { getSession } from "@/lib/auth";
 import { Notebook } from "@/models/Notebook";
@@ -74,9 +73,6 @@ export default async function Home() {
     });
     counts.set(nb._id, { chapters: chapters.length, pages });
   }
-  const recent = await Page.find({ userId: session.userId })
-    .sort({ updatedAt: -1 })
-    .limit(8);
 
   return (
     <div className="stack">
@@ -100,18 +96,6 @@ export default async function Home() {
             />
           ))}
         </div>
-      )}
-      {recent.length > 0 && (
-        <>
-          <h2>Recently updated pages</h2>
-          <div className="stack">
-            {recent.map((p) => (
-              <div key={String(p._id)} className="card">
-                <Link href={`/pages/${String(p._id)}`}>{p.title}</Link>
-              </div>
-            ))}
-          </div>
-        </>
       )}
     </div>
   );
