@@ -15,6 +15,11 @@ type HighlightT = {
   chapterTitle: string;
 };
 
+const TAB_COLORS = [
+  "#ef4444", "#f97316", "#eab308", "#22c55e", "#14b8a6",
+  "#3b82f6", "#a855f7", "#ec4899", "#84cc16", "#06b6d4",
+];
+
 async function api(path: string, init?: RequestInit) {
   const res = await fetch(path, {
     ...init,
@@ -169,8 +174,12 @@ export function NotebookView({
       {chapters.length === 0 && (
         <p className="muted">No chapters yet. Add your first chapter above.</p>
       )}
-      {chapters.map((ch) => (
-        <section key={ch._id} className="card stack">
+      {chapters.map((ch, i) => (
+        <section key={ch._id} className="card stack chapter-card">
+          <span
+            className="chapter-tab"
+            style={{ backgroundColor: TAB_COLORS[i % TAB_COLORS.length] }}
+          />
           <div className="row" style={{ justifyContent: "space-between" }}>
             {editingChapter === ch._id ? (
               <span className="row" style={{ flex: 1 }}>
