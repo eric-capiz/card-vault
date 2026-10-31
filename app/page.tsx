@@ -64,14 +64,16 @@ export default async function Home() {
     title: string;
     color: string;
   }[];
-  const counts = new Map<string, { chapters: number; pages: number }>();
+  const counts = new Map<string, { chapterIds: string[]; pages: number }>();
   for (const nb of notebookList) {
-    const chapters = await Chapter.find({ notebookId: nb._id, userId: session.userId }).select("_id");
+    const chapters = await Chapter.find({ notebookId: nb._id, userId: session.userId })
+      .select("_id order")
+      .sort({ order: 1 });
     const pages = await Page.countDocuments({
       chapterId: { $in: chapters.map((c) => c._id) },
       userId: session.userId,
     });
-    counts.set(nb._id, { chapters: chapters.length, pages });
+    counts.set(nb._id, { chapterIds: chapters.map((c) => String(c._id)), pages });
   }
 
   return (
@@ -91,7 +93,7 @@ export default async function Home() {
             <NotebookCard
               key={nb._id}
               notebook={nb}
-              chapters={counts.get(nb._id)?.chapters ?? 0}
+              chapterIds={counts.get(nb._id)?.chapterIds ?? []}
               pages={counts.get(nb._id)?.pages ?? 0}
             />
           ))}

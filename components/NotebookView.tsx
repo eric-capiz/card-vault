@@ -170,11 +170,13 @@ export function NotebookView({
         <p className="muted">No chapters yet. Add your first chapter above.</p>
       )}
       {chapters.map((ch, i) => (
-        <section key={ch._id} className="card stack chapter-card">
+        <section key={ch._id} id={`chapter-${ch._id}`} className="card stack chapter-card">
           <span
             className="chapter-tab"
             style={{ backgroundColor: TAB_COLORS[i % TAB_COLORS.length] }}
-          />
+          >
+            {i + 1}
+          </span>
           <div className="row" style={{ justifyContent: "space-between" }}>
             {editingChapter === ch._id ? (
               <span className="row" style={{ flex: 1 }}>

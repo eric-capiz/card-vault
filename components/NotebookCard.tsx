@@ -6,11 +6,11 @@ import { TAB_COLORS } from "./ColorPicker";
 
 export function NotebookCard({
   notebook,
-  chapters,
+  chapterIds,
   pages,
 }: {
   notebook: { _id: string; title: string; color: string };
-  chapters: number;
+  chapterIds: string[];
   pages: number;
 }) {
   const router = useRouter();
@@ -31,7 +31,7 @@ export function NotebookCard({
       <div className="notebook-body">
         <div className="row" style={{ justifyContent: "space-between" }}>
           <span className="muted">
-            {chapters} {chapters === 1 ? "chapter" : "chapters"} · {pages}{" "}
+            {chapterIds.length} {chapterIds.length === 1 ? "chapter" : "chapters"} · {pages}{" "}
             {pages === 1 ? "page" : "pages"}
           </span>
           <button className="btn btn-small btn-danger" onClick={remove}>
@@ -40,12 +40,15 @@ export function NotebookCard({
         </div>
       </div>
       <div className="book-tabs">
-        {Array.from({ length: Math.min(chapters, 8) }).map((_, i) => (
-          <span
-            key={i}
+        {chapterIds.slice(0, 8).map((id, i) => (
+          <Link
+            key={id}
             className="book-tab"
             style={{ backgroundColor: TAB_COLORS[i % TAB_COLORS.length] }}
-          />
+            href={`/notebooks/${notebook._id}#chapter-${id}`}
+          >
+            {i + 1}
+          </Link>
         ))}
       </div>
     </div>
