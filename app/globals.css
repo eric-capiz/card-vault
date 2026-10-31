@@ -120,12 +120,12 @@ h3 { font-size: 16px; margin: 0; color: #f5eed6; }
 .notebook-card::before {
   content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 14px;
   background: linear-gradient(to right, rgba(0,0,0,.5), rgba(0,0,0,.18) 60%, transparent);
-  border-radius: 14px 0 0 14px; z-index: 1; pointer-events: none;
+  border-radius: 14px 0 0 14px; z-index: 3; pointer-events: none;
 }
 .notebook-card::after {
   content: ""; position: absolute; right: 0; top: 8px; bottom: 8px; width: 10px;
   background: repeating-linear-gradient(to bottom, #f5eed6 0 2px, #cfc2a0 3px);
-  border-radius: 0 6px 6px 0; z-index: 1; pointer-events: none;
+  border-radius: 0 6px 6px 0; z-index: 3; pointer-events: none;
 }
 .notebook-card .notebook-cover { position: relative; z-index: 2; padding-left: 26px; }
 .notebook-card .notebook-body { position: relative; z-index: 2; padding-left: 26px; }
