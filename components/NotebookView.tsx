@@ -7,16 +7,6 @@ import { ColorPicker, TAB_COLORS } from "./ColorPicker";
 
 type ChapterT = { _id: string; title: string; order: number };
 type PageT = { _id: string; title: string; order: number };
-type HighlightT = {
-  color: string;
-  text: string;
-  contextBefore: string;
-  contextAfter: string;
-  pageId: string;
-  pageTitle: string;
-  chapterTitle: string;
-};
-
 async function api(path: string, init?: RequestInit) {
   const res = await fetch(path, {
     ...init,
@@ -48,7 +38,6 @@ export function NotebookView({
   const [chapterDraft, setChapterDraft] = useState("");
   const [editingPage, setEditingPage] = useState<string | null>(null);
   const [pageDraft, setPageDraft] = useState("");
-  const [highlights, setHighlights] = useState<HighlightT[]>([]);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState("");
 
@@ -83,14 +72,6 @@ export function NotebookView({
     setPages(grouped);
     return ch.chapters as ChapterT[];
   }
-
-  useEffect(() => {
-    fetch(`/api/highlights?notebookId=${notebook._id}`)
-      .then((r) => r.json())
-      .then((d) => setHighlights(d.highlights ?? []))
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   async function saveNotebook() {
     setError("");
@@ -143,25 +124,6 @@ export function NotebookView({
   ) {
     await api(`/api/${kind}/${id}`, { method: "PATCH", body: JSON.stringify({ move: dir }) });
     await refresh();
-  }
-
-  const highlightGroups: {
-    pageId: string;
-    pageTitle: string;
-    chapterTitle: string;
-    items: HighlightT[];
-  }[] = [];
-  for (const h of highlights) {
-    const g = highlightGroups.find((x) => x.pageId === h.pageId);
-    if (g) g.items.push(h);
-    else {
-      highlightGroups.push({
-        pageId: h.pageId,
-        pageTitle: h.pageTitle,
-        chapterTitle: h.chapterTitle,
-        items: [h],
-      });
-    }
   }
 
   return (
@@ -391,28 +353,6 @@ export function NotebookView({
         </section>
       ))}
 
-      {highlightGroups.length > 0 && (
-        <section className="card stack">
-          <h2 style={{ marginTop: 0 }}>Highlights in this notebook</h2>
-          {highlightGroups.map((g) => (
-            <div key={g.pageId}>
-              <div className="muted">
-                <Link href={`/pages/${g.pageId}`}>{g.pageTitle}</Link> · {g.chapterTitle} (
-                {g.items.length} {g.items.length === 1 ? "highlight" : "highlights"})
-              </div>
-              {g.items.map((h, i) => (
-                <div key={i}>
-                  {h.contextBefore && <span className="muted">{h.contextBefore}</span>}
-                  <mark style={{ backgroundColor: h.color, padding: "0 2px", borderRadius: 3 }}>
-                    {h.text}
-                  </mark>
-                  {h.contextAfter && <span className="muted">{h.contextAfter}</span>}
-                </div>
-              ))}
-            </div>
-          ))}
-        </section>
-      )}
     </div>
   );
 }
