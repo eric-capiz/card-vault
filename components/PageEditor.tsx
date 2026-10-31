@@ -156,6 +156,38 @@ export function PageEditor({
     </div>
   );
 
+  const addBar = (
+    <div className="card row">
+      <button className="btn btn-primary" onClick={addNote}>+ Note</button>
+      <label className="btn" style={{ cursor: "pointer" }}>
+        + Image
+        <input
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void addImage(f);
+            e.target.value = "";
+          }}
+        />
+      </label>
+      <label className="btn" style={{ cursor: "pointer" }}>
+        + File / PDF
+        <input
+          type="file"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void addFile(f);
+            e.target.value = "";
+          }}
+        />
+      </label>
+      <span className="muted">Files up to 10 MB. Images are compressed automatically. Tip: paste an image straight from Snipping Tool with Ctrl+V.</span>
+    </div>
+  );
+
   async function refresh() {
     const data = await api(`/api/items?pageId=${page._id}`);
     setItems(data.items);
@@ -371,35 +403,7 @@ export function PageEditor({
       {saved && <div className="muted">{saved}</div>}
       {error && <div className="error">{error}</div>}
 
-      <div className="card row">
-        <button className="btn btn-primary" onClick={addNote}>+ Note</button>
-        <label className="btn" style={{ cursor: "pointer" }}>
-          + Image
-          <input
-            type="file"
-            accept="image/*"
-            hidden
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void addImage(f);
-              e.target.value = "";
-            }}
-          />
-        </label>
-        <label className="btn" style={{ cursor: "pointer" }}>
-          + File / PDF
-          <input
-            type="file"
-            hidden
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void addFile(f);
-              e.target.value = "";
-            }}
-          />
-        </label>
-        <span className="muted">Files up to 10 MB. Images are compressed automatically. Tip: paste an image straight from Snipping Tool with Ctrl+V.</span>
-      </div>
+      {addBar}
 
       {items.length === 0 && (
         <p className="muted">This page is empty. Add a note, an image, or a file above.</p>
@@ -472,6 +476,7 @@ export function PageEditor({
           )}
         </div>
       ))}
+      {addBar}
       {nav}
     </div>
   );
