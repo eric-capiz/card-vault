@@ -511,27 +511,32 @@ export function PageEditor({
         return (
           <div key={g.type} className="stack">
             {g.items.length > 1 && (
-              <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
-                <strong>{GROUP_LABEL[g.type]}</strong>
-                <span className="row" style={{ alignItems: "center" }}>
-                  <button
-                    className="btn btn-small"
-                    disabled={idx === 0}
-                    onClick={() => setSlide((s) => ({ ...s, [g.type]: idx - 1 }))}
-                  >
-                    ←
-                  </button>
-                  <span className="muted">
-                    {idx + 1} of {g.items.length}
+              <div className="slide-bar">
+                <div className="slide-row">
+                  <strong className="slide-title">{GROUP_LABEL[g.type]}</strong>
+                  <span className="slide-controls">
+                    <button
+                      className="btn slide-btn"
+                      disabled={idx === 0}
+                      onClick={() => setSlide((s) => ({ ...s, [g.type]: idx - 1 }))}
+                    >
+                      ← Prev
+                    </button>
+                    <span className="slide-count">
+                      {idx + 1} of {g.items.length}
+                    </span>
+                    <button
+                      className="btn slide-btn"
+                      disabled={idx === g.items.length - 1}
+                      onClick={() => setSlide((s) => ({ ...s, [g.type]: idx + 1 }))}
+                    >
+                      Next →
+                    </button>
                   </span>
-                  <button
-                    className="btn btn-small"
-                    disabled={idx === g.items.length - 1}
-                    onClick={() => setSlide((s) => ({ ...s, [g.type]: idx + 1 }))}
-                  >
-                    →
-                  </button>
-                </span>
+                </div>
+                <div className="slide-progress">
+                  <div className="slide-fill" style={{ width: `${((idx + 1) / g.items.length) * 100}%` }} />
+                </div>
               </div>
             )}
             {blockCard(g.items[idx], idx, g.items.length)}
