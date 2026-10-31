@@ -169,6 +169,16 @@ mark { color: #1c1a10; }
   padding: 2px 8px; font-size: 13px;
 }
 .tag-chip button { background: none; border: none; color: #e8e0d0; cursor: pointer; font-size: 14px; line-height: 1; }
+/* Password field with show/hide eye toggle */
+.password-wrap { position: relative; }
+.password-wrap .input { padding-right: 44px; }
+.password-toggle {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; color: #a89e8a; cursor: pointer;
+  padding: 4px; line-height: 1; display: flex; align-items: center;
+}
+.password-toggle:hover { color: #f2ead8; }
+
 /* Page-block carousel nav: distinct bar, mid-size (v1 was too small, v2 too big) */
 .slide-bar {
   background: rgba(212,175,55,.12); border: 1px solid rgba(212,175,55,.5);
