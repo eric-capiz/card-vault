@@ -16,7 +16,7 @@ export function NotebookCard({
   const router = useRouter();
 
   async function remove() {
-    if (!window.confirm(`Delete "${notebook.title}" and everything inside it?`)) return;
+    if (!window.confirm(`Move "${notebook.title}" to Trash? You can restore it from Trash for 30 days.`)) return;
     const res = await fetch(`/api/notebooks/${notebook._id}`, { method: "DELETE" });
     if (res.ok) router.refresh();
   }

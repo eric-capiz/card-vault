@@ -1,9 +1,7 @@
-import { connectDB, toPlain } from "@/lib/mongodb";
+import { toPlain } from "@/lib/mongodb";
 import { getSession } from "@/lib/auth";
 import { getNotebook } from "@/lib/owner";
-import { Chapter } from "@/models/Chapter";
-import { Page } from "@/models/Page";
-import { PageItem } from "@/models/PageItem";
+import { trashNotebook } from "@/lib/trash";
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
@@ -40,15 +38,7 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   const { id } = await params;
   const nb = await getNotebook(session.userId, id);
   if (!nb) return Response.json({ error: "Not found." }, { status: 404 });
-  await connectDB();
-  // Cascade: chapters -> pages -> items, all scoped to this user.
-  const chapters = await Chapter.find({ notebookId: nb._id, userId: session.userId }).select("_id");
-  const chapterIds = chapters.map((c) => c._id);
-  const pages = await Page.find({ chapterId: { $in: chapterIds }, userId: session.userId }).select("_id");
-  const pageIds = pages.map((p) => p._id);
-  await PageItem.deleteMany({ pageId: { $in: pageIds }, userId: session.userId });
-  await Page.deleteMany({ chapterId: { $in: chapterIds }, userId: session.userId });
-  await Chapter.deleteMany({ notebookId: nb._id, userId: session.userId });
-  await nb.deleteOne();
+  // Delete moves to Trash (soft-delete cascade); Trash restores or purges.
+  await trashNotebook(session.userId, id);
   return Response.json({ ok: true });
 }

@@ -27,6 +27,8 @@ export function Navbar() {
     <nav className="nav">
       <Link href="/" className="nav-brand">Notebook</Link>
       <Link href="/search">Search</Link>
+      <Link href="/tags">Tags</Link>
+      <Link href="/trash">Trash</Link>
       <span className="nav-spacer" />
       {loaded && display ? (
         <>

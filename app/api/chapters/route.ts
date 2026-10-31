@@ -9,7 +9,7 @@ export async function GET(req: Request) {
   const notebookId = new URL(req.url).searchParams.get("notebookId") ?? "";
   const nb = await getNotebook(session.userId, notebookId);
   if (!nb) return Response.json({ error: "Not found." }, { status: 404 });
-  const docs = await Chapter.find({ notebookId: nb._id, userId: session.userId }).sort({
+  const docs = await Chapter.find({ notebookId: nb._id, userId: session.userId, deletedAt: null }).sort({
     order: 1,
     createdAt: 1,
   });

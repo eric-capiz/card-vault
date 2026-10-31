@@ -1,10 +1,9 @@
-import { connectDB, toPlain } from "@/lib/mongodb";
+import { toPlain } from "@/lib/mongodb";
 import { getSession } from "@/lib/auth";
 import { getChapter } from "@/lib/owner";
 import { swapOrder } from "@/lib/reorder";
+import { trashChapter } from "@/lib/trash";
 import { Chapter } from "@/models/Chapter";
-import { Page } from "@/models/Page";
-import { PageItem } from "@/models/PageItem";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -21,7 +20,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (body.move) {
     await swapOrder(
       Chapter as never,
-      { notebookId: ch.notebookId, userId: session.userId },
+      { notebookId: ch.notebookId, userId: session.userId, deletedAt: null },
       String(ch._id),
       body.move,
     );
@@ -43,11 +42,7 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   const { id } = await params;
   const ch = await getChapter(session.userId, id);
   if (!ch) return Response.json({ error: "Not found." }, { status: 404 });
-  await connectDB();
-  const pages = await Page.find({ chapterId: ch._id, userId: session.userId }).select("_id");
-  const pageIds = pages.map((p) => p._id);
-  await PageItem.deleteMany({ pageId: { $in: pageIds }, userId: session.userId });
-  await Page.deleteMany({ chapterId: ch._id, userId: session.userId });
-  await ch.deleteOne();
+  // Delete moves to Trash (soft-delete cascade); Trash restores or purges.
+  await trashChapter(session.userId, id);
   return Response.json({ ok: true });
 }

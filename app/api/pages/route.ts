@@ -9,7 +9,7 @@ export async function GET(req: Request) {
   const chapterId = new URL(req.url).searchParams.get("chapterId") ?? "";
   const ch = await getChapter(session.userId, chapterId);
   if (!ch) return Response.json({ error: "Not found." }, { status: 404 });
-  const docs = await Page.find({ chapterId: ch._id, userId: session.userId }).sort({
+  const docs = await Page.find({ chapterId: ch._id, userId: session.userId, deletedAt: null }).sort({
     order: 1,
     createdAt: 1,
   });

@@ -8,7 +8,7 @@ export async function GET() {
   const session = await getSession();
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
   await connectDB();
-  const docs = await Notebook.find({ userId: session.userId }).sort({ updatedAt: -1 });
+  const docs = await Notebook.find({ userId: session.userId, deletedAt: null }).sort({ updatedAt: -1 });
   return Response.json({ notebooks: docs.map(toPlain) });
 }
 

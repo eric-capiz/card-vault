@@ -50,7 +50,7 @@ export function PageEditor({
   chapterCount,
   initialItems,
 }: {
-  page: { _id: string; title: string };
+  page: { _id: string; title: string; tags: string[]; pinned: boolean };
   notebookId: string;
   notebookTitle: string;
   chapterId: string;
@@ -68,7 +68,45 @@ export function PageEditor({
   const [error, setError] = useState("");
   const [saved, setSaved] = useState("");
   const [creatingChapter, setCreatingChapter] = useState(false);
+  const [tags, setTags] = useState<string[]>(page.tags ?? []);
+  const [newTag, setNewTag] = useState("");
+  const [pinned, setPinned] = useState(page.pinned ?? false);
   const noteRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  async function saveTags(next: string[]) {
+    try {
+      const res = await api(`/api/pages/${page._id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ tags: next }),
+      });
+      setTags(res.page.tags ?? next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save tags.");
+    }
+  }
+
+  async function addTag() {
+    const t = newTag.trim();
+    if (!t) return;
+    setNewTag("");
+    await saveTags([...tags, t]);
+  }
+
+  async function removeTag(t: string) {
+    await saveTags(tags.filter((x) => x !== t));
+  }
+
+  async function togglePin() {
+    try {
+      const res = await api(`/api/pages/${page._id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ pinned: !pinned }),
+      });
+      setPinned(res.page.pinned ?? !pinned);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not change pin.");
+    }
+  }
 
   async function createNextChapter() {
     setCreatingChapter(true);
@@ -261,15 +299,45 @@ export function PageEditor({
         >
           Save title
         </button>
+        <button className="btn" onClick={togglePin}>
+          {pinned ? "Unpin" : "Pin"}
+        </button>
         <button
           className="btn btn-danger"
           onClick={async () => {
-            if (!window.confirm(`Delete page "${page.title}" and its blocks?`)) return;
+            if (!window.confirm(`Move page "${page.title}" to Trash? You can restore it from Trash for 30 days.`)) return;
             await api(`/api/pages/${page._id}`, { method: "DELETE" });
             router.push(`/notebooks/${notebookId}`);
           }}
         >
           Delete page
+        </button>
+      </div>
+      <div className="card row" style={{ flexWrap: "wrap" }}>
+        <span className="muted">Tags:</span>
+        {tags.map((t) => (
+          <span key={t} className="tag-chip">
+            <Link href={`/tags?tag=${encodeURIComponent(t)}`}>{t}</Link>
+            <button type="button" onClick={() => void removeTag(t)} aria-label={`Remove tag ${t}`}>
+              ×
+            </button>
+          </span>
+        ))}
+        <input
+          className="input"
+          placeholder="Add a tag"
+          value={newTag}
+          onChange={(e) => setNewTag(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void addTag();
+            }
+          }}
+          style={{ flex: 1, minWidth: 120 }}
+        />
+        <button className="btn" onClick={() => void addTag()}>
+          Add
         </button>
       </div>
       {saved && <div className="muted">{saved}</div>}

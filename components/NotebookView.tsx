@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { ColorPicker, TAB_COLORS } from "./ColorPicker";
 
 type ChapterT = { _id: string; title: string; order: number };
-type PageT = { _id: string; title: string; order: number };
+type PageT = { _id: string; title: string; order: number; pinned: boolean };
 async function api(path: string, init?: RequestInit) {
   const res = await fetch(path, {
     ...init,
@@ -88,7 +88,7 @@ export function NotebookView({
   }
 
   async function deleteNotebook() {
-    if (!window.confirm(`Delete "${notebook.title}" and everything inside it?`)) return;
+    if (!window.confirm(`Move "${notebook.title}" to Trash? You can restore it from Trash for 30 days.`)) return;
     await api(`/api/notebooks/${notebook._id}`, { method: "DELETE" });
     router.push("/");
   }
@@ -159,6 +159,16 @@ export function NotebookView({
         </div>
         {saved && <div className="muted">{saved}</div>}
         {error && <div className="error">{error}</div>}
+      </div>
+
+      <div className="row">
+        <span className="muted">Export:</span>
+        <Link className="btn btn-small" href={`/api/notebooks/${notebook._id}/export`}>
+          Markdown
+        </Link>
+        <Link className="btn btn-small" href={`/notebooks/${notebook._id}/print`}>
+          Print / PDF
+        </Link>
       </div>
 
       <form onSubmit={addChapter} className="card row">
@@ -266,7 +276,7 @@ export function NotebookView({
               <button
                 className="btn btn-small btn-danger"
                 onClick={async () => {
-                  if (!window.confirm(`Delete chapter "${ch.title}" and its pages?`)) return;
+                  if (!window.confirm(`Move chapter "${ch.title}" to Trash? You can restore it from Trash for 30 days.`)) return;
                   const idx = chapters.findIndex((c) => c._id === ch._id);
                   await api(`/api/chapters/${ch._id}`, { method: "DELETE" });
                   const chs = await refresh();
@@ -326,9 +336,21 @@ export function NotebookView({
                     Rename
                   </button>
                   <button
+                    className="btn btn-small"
+                    onClick={async () => {
+                      await api(`/api/pages/${pg._id}`, {
+                        method: "PATCH",
+                        body: JSON.stringify({ pinned: !pg.pinned }),
+                      });
+                      await refresh();
+                    }}
+                  >
+                    {pg.pinned ? "Unpin" : "Pin"}
+                  </button>
+                  <button
                     className="btn btn-small btn-danger"
                     onClick={async () => {
-                      if (!window.confirm(`Delete page "${pg.title}"?`)) return;
+                      if (!window.confirm(`Move page "${pg.title}" to Trash? You can restore it from Trash for 30 days.`)) return;
                       await api(`/api/pages/${pg._id}`, { method: "DELETE" });
                       await refresh();
                     }}

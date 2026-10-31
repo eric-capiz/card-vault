@@ -15,15 +15,15 @@ export default async function NotebookPage({
   if (!session) redirect("/login");
   const { id } = await params;
   await connectDB();
-  const nb = await Notebook.findOne({ _id: id, userId: session.userId });
+  const nb = await Notebook.findOne({ _id: id, userId: session.userId, deletedAt: null });
   if (!nb) notFound();
-  const chapters = await Chapter.find({ notebookId: nb._id, userId: session.userId }).sort({
+  const chapters = await Chapter.find({ notebookId: nb._id, userId: session.userId, deletedAt: null }).sort({
     order: 1,
     createdAt: 1,
   });
   const pagesByChapter: Record<string, unknown[]> = {};
   for (const ch of chapters) {
-    const pages = await Page.find({ chapterId: ch._id, userId: session.userId }).sort({
+    const pages = await Page.find({ chapterId: ch._id, userId: session.userId, deletedAt: null }).sort({
       order: 1,
       createdAt: 1,
     });
@@ -34,7 +34,7 @@ export default async function NotebookPage({
       notebook={toPlain(nb) as { _id: string; title: string; color: string }}
       initialChapters={chapters.map(toPlain) as { _id: string; title: string; order: number }[]}
       initialPages={
-        pagesByChapter as Record<string, { _id: string; title: string; order: number }[]>
+        pagesByChapter as Record<string, { _id: string; title: string; order: number; pinned: boolean }[]>
       }
     />
   );

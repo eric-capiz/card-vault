@@ -10,19 +10,20 @@ import { PageItem } from "@/models/PageItem";
  * parent-chain walks, and no user can ever touch another user's data.
  * Returns the document, or null when it does not exist or is not theirs.
  */
+/** Live items only: trashed items (deletedAt set) are invisible outside Trash. */
 export async function getNotebook(userId: string, id: string) {
   await connectDB();
-  return Notebook.findOne({ _id: id, userId });
+  return Notebook.findOne({ _id: id, userId, deletedAt: null });
 }
 
 export async function getChapter(userId: string, id: string) {
   await connectDB();
-  return Chapter.findOne({ _id: id, userId });
+  return Chapter.findOne({ _id: id, userId, deletedAt: null });
 }
 
 export async function getPage(userId: string, id: string) {
   await connectDB();
-  return Page.findOne({ _id: id, userId });
+  return Page.findOne({ _id: id, userId, deletedAt: null });
 }
 
 export async function getItem(userId: string, id: string) {

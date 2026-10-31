@@ -163,3 +163,12 @@ mark { color: #1c1a10; }
 .carousel-tab.active { opacity: 1; box-shadow: 0 0 0 2px #D4AF37; }
 .carousel-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .btn:disabled { opacity: .4; cursor: default; }
+.tag-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #2a2723; border: 1px solid #3a3325; border-radius: 999px;
+  padding: 2px 8px; font-size: 13px;
+}
+.tag-chip button { background: none; border: none; color: #e8e0d0; cursor: pointer; font-size: 14px; line-height: 1; }
+@media print {
+  .nav, .no-print { display: none !important; }
+}

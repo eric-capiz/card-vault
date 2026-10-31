@@ -5,6 +5,10 @@ export interface INotebook extends Document {
   title: string;
   /** Solid cover color, stored as a hex string the user picks and can change. */
   color: string;
+  /** Soft-delete timestamp (null = live). Trash restore clears this. */
+  deletedAt: number | null;
+  /** Id of the top-level item this was trashed with (itself when trashed directly). */
+  trashedWith: Types.ObjectId | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -13,6 +17,8 @@ const NotebookSchema = new Schema<INotebook>({
   userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
   title: { type: String, required: true, trim: true },
   color: { type: String, default: "#4f7cff" },
+  deletedAt: { type: Number, default: null },
+  trashedWith: { type: Schema.Types.ObjectId, default: null },
   createdAt: { type: Number, default: Date.now },
   updatedAt: { type: Number, default: Date.now },
 });

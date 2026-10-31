@@ -19,21 +19,23 @@ export async function GET(req: Request) {
   const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
   await connectDB();
   const userId = session.userId;
-  const notebooks = await Notebook.find({ userId, title: re }).limit(20);
-  const chapters = await Chapter.find({ userId, title: re }).limit(20);
-  const pages = await Page.find({ userId, title: re }).limit(20);
-  const notes = await PageItem.find({ userId, type: "note", text: re }).limit(20);
+  const notebooks = await Notebook.find({ userId, title: re, deletedAt: null }).limit(20);
+  const chapters = await Chapter.find({ userId, title: re, deletedAt: null }).limit(20);
+  const pages = await Page.find({ userId, title: re, deletedAt: null }).limit(20);
+  const allNotes = await PageItem.find({ userId, type: "note", text: re }).limit(20);
   const chapterById = new Map(
-    (await Chapter.find({ userId, _id: { $in: pages.map((p) => p.chapterId) } })).map(
+    (await Chapter.find({ userId, _id: { $in: pages.map((p) => p.chapterId) }, deletedAt: null })).map(
       (c) => [String(c._id), c],
     ),
   );
   const pageById = new Map(
-    (await Page.find({ userId, _id: { $in: notes.map((n) => n.pageId) } })).map((p) => [
+    (await Page.find({ userId, _id: { $in: allNotes.map((n) => n.pageId) }, deletedAt: null })).map((p) => [
       String(p._id),
       p,
     ]),
   );
+  // Notes on trashed pages stay hidden: their pages are absent from pageById.
+  const notes = allNotes.filter((n) => pageById.has(String(n.pageId)));
   return Response.json({
     notebooks: notebooks.map((n) => ({ _id: String(n._id), title: n.title, color: n.color })),
     chapters: chapters.map((c) => ({

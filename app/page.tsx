@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { connectDB, toPlain } from "@/lib/mongodb";
 import { getSession } from "@/lib/auth";
 import { Notebook } from "@/models/Notebook";
@@ -58,7 +59,7 @@ export default async function Home() {
   }
 
   await connectDB();
-  const notebooks = await Notebook.find({ userId: session.userId }).sort({ updatedAt: -1 });
+  const notebooks = await Notebook.find({ userId: session.userId, deletedAt: null }).sort({ updatedAt: -1 });
   const notebookList = notebooks.map(toPlain) as {
     _id: string;
     title: string;
@@ -66,20 +67,59 @@ export default async function Home() {
   }[];
   const counts = new Map<string, { chapterIds: string[]; pages: number }>();
   for (const nb of notebookList) {
-    const chapters = await Chapter.find({ notebookId: nb._id, userId: session.userId })
+    const chapters = await Chapter.find({ notebookId: nb._id, userId: session.userId, deletedAt: null })
       .select("_id order")
       .sort({ order: 1 });
     const pages = await Page.countDocuments({
       chapterId: { $in: chapters.map((c) => c._id) },
       userId: session.userId,
+      deletedAt: null,
     });
     counts.set(nb._id, { chapterIds: chapters.map((c) => String(c._id)), pages });
   }
+  const pinnedDocs = await Page.find({ userId: session.userId, pinned: true, deletedAt: null })
+    .sort({ updatedAt: -1 })
+    .limit(20);
+  const pinnedChapters = await Chapter.find({
+    _id: { $in: pinnedDocs.map((p) => p.chapterId) },
+    userId: session.userId,
+  });
+  const pinnedChapterById = new Map(pinnedChapters.map((c) => [String(c._id), c]));
+  const pinnedNotebooks = await Notebook.find({
+    _id: { $in: pinnedChapters.map((c) => c.notebookId) },
+    userId: session.userId,
+  });
+  const pinnedNotebookById = new Map(pinnedNotebooks.map((n) => [String(n._id), n.title]));
+  const pinned = pinnedDocs.map((p) => {
+    const ch = pinnedChapterById.get(String(p.chapterId));
+    return {
+      id: String(p._id),
+      title: p.title,
+      chapterTitle: ch?.title ?? "",
+      notebookTitle: ch ? (pinnedNotebookById.get(String(ch.notebookId)) ?? "") : "",
+    };
+  });
 
   return (
     <div className="stack">
       <h1>Notebooks</h1>
       <NotebookCreator />
+      {pinned.length > 0 && (
+        <>
+          <h2>Pinned pages</h2>
+          <div className="stack">
+            {pinned.map((p) => (
+              <div key={p.id} className="card">
+                <Link href={`/pages/${p.id}`}>{p.title}</Link>
+                <span className="muted">
+                  {" "}
+                  · {p.notebookTitle} · {p.chapterTitle}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
       {notebookList.length === 0 ? (
         <>
           <p className="muted">
