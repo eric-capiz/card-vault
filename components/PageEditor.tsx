@@ -71,6 +71,7 @@ export function PageEditor({
   const [tags, setTags] = useState<string[]>(page.tags ?? []);
   const [newTag, setNewTag] = useState("");
   const [pinned, setPinned] = useState(page.pinned ?? false);
+  const [slide, setSlide] = useState<Record<string, number>>({});
   const noteRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   async function saveTags(next: string[]) {
@@ -333,6 +334,103 @@ export function PageEditor({
     await refresh();
   }
 
+  function blockCard(item: ItemT, gi: number, glen: number) {
+    return (
+      <div className="block">
+        <div className="block-actions">
+          <button
+            className="btn btn-small"
+            disabled={gi === 0}
+            onClick={async () => {
+              await move(item._id, "up");
+              setSlide((s) => ({ ...s, [item.type]: Math.max(0, gi - 1) }));
+            }}
+          >
+            ↑
+          </button>
+          <button
+            className="btn btn-small"
+            disabled={gi === glen - 1}
+            onClick={async () => {
+              await move(item._id, "down");
+              setSlide((s) => ({ ...s, [item.type]: Math.min(glen - 1, gi + 1) }));
+            }}
+          >
+            ↓
+          </button>
+          <button className="btn btn-small btn-danger" onClick={() => remove(item._id)}>
+            Delete
+          </button>
+        </div>
+        {item.type === "note" && (
+          <>
+            <div className="highlight-toolbar">
+              <span className="muted">Highlight:</span>
+              {HIGHLIGHT_COLORS.map((c) => (
+                <button
+                  key={c.value}
+                  type="button"
+                  className="highlight-chip"
+                  style={{ backgroundColor: c.value }}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => highlight(item, c.value)}
+                >
+                  {c.name}
+                </button>
+              ))}
+              <span className="muted">Select text in the note, then pick a color.</span>
+            </div>
+            <div
+              ref={(el) => {
+                noteRefs.current[item._id] = el;
+              }}
+              className="note-editor"
+              contentEditable
+              suppressContentEditableWarning
+              data-placeholder="Write a note…"
+              dangerouslySetInnerHTML={{ __html: item.text }}
+              onBlur={() => void saveNote(item)}
+            />
+          </>
+        )}
+        {item.type === "image" && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={item.dataUrl}
+            alt={item.fileName}
+            style={{ maxWidth: "100%", borderRadius: 8 }}
+          />
+        )}
+        {item.type === "file" && (
+          <div className="stack">
+            <div>
+              <strong>{item.fileName}</strong>{" "}
+              <span className="muted">({Math.round(item.size / 1024)} KB)</span>
+            </div>
+            {item.mimeType === "application/pdf" && (
+              <embed
+                className="file-embed"
+                src={item.dataUrl}
+                type="application/pdf"
+              />
+            )}
+            <a href={item.dataUrl} download={item.fileName} className="btn" style={{ alignSelf: "flex-start" }}>
+              Download
+            </a>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const groups: { type: ItemT["type"]; items: ItemT[] }[] = [];
+  for (const it of items) {
+    const g = groups.find((x) => x.type === it.type);
+    if (g) g.items.push(it);
+    else groups.push({ type: it.type, items: [it] });
+  }
+  const GROUP_LABEL: Record<ItemT["type"], string> = { note: "Notes", image: "Images", file: "Files" };
+
   return (
     <div className="stack" onPaste={handlePaste}>
       <div className="muted">
@@ -408,74 +506,38 @@ export function PageEditor({
       {items.length === 0 && (
         <p className="muted">This page is empty. Add a note, an image, or a file above.</p>
       )}
-      {items.map((item) => (
-        <div key={item._id} className="block">
-          <div className="block-actions">
-            <button className="btn btn-small" onClick={() => move(item._id, "up")}>↑</button>
-            <button className="btn btn-small" onClick={() => move(item._id, "down")}>↓</button>
-            <button className="btn btn-small btn-danger" onClick={() => remove(item._id)}>
-              Delete
-            </button>
-          </div>
-          {item.type === "note" && (
-            <>
-              <div className="highlight-toolbar">
-                <span className="muted">Highlight:</span>
-                {HIGHLIGHT_COLORS.map((c) => (
+      {groups.map((g) => {
+        const idx = Math.min(slide[g.type] ?? 0, g.items.length - 1);
+        return (
+          <div key={g.type} className="stack">
+            {g.items.length > 1 && (
+              <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+                <strong>{GROUP_LABEL[g.type]}</strong>
+                <span className="row" style={{ alignItems: "center" }}>
                   <button
-                    key={c.value}
-                    type="button"
-                    className="highlight-chip"
-                    style={{ backgroundColor: c.value }}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => highlight(item, c.value)}
+                    className="btn btn-small"
+                    disabled={idx === 0}
+                    onClick={() => setSlide((s) => ({ ...s, [g.type]: idx - 1 }))}
                   >
-                    {c.name}
+                    ←
                   </button>
-                ))}
-                <span className="muted">Select text in the note, then pick a color.</span>
+                  <span className="muted">
+                    {idx + 1} of {g.items.length}
+                  </span>
+                  <button
+                    className="btn btn-small"
+                    disabled={idx === g.items.length - 1}
+                    onClick={() => setSlide((s) => ({ ...s, [g.type]: idx + 1 }))}
+                  >
+                    →
+                  </button>
+                </span>
               </div>
-              <div
-                ref={(el) => {
-                  noteRefs.current[item._id] = el;
-                }}
-                className="note-editor"
-                contentEditable
-                suppressContentEditableWarning
-                data-placeholder="Write a note…"
-                dangerouslySetInnerHTML={{ __html: item.text }}
-                onBlur={() => void saveNote(item)}
-              />
-            </>
-          )}
-          {item.type === "image" && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={item.dataUrl}
-              alt={item.fileName}
-              style={{ maxWidth: "100%", borderRadius: 8 }}
-            />
-          )}
-          {item.type === "file" && (
-            <div className="stack">
-              <div>
-                <strong>{item.fileName}</strong>{" "}
-                <span className="muted">({Math.round(item.size / 1024)} KB)</span>
-              </div>
-              {item.mimeType === "application/pdf" && (
-                <embed
-                  className="file-embed"
-                  src={item.dataUrl}
-                  type="application/pdf"
-                />
-              )}
-              <a href={item.dataUrl} download={item.fileName} className="btn" style={{ alignSelf: "flex-start" }}>
-                Download
-              </a>
-            </div>
-          )}
-        </div>
-      ))}
+            )}
+            {blockCard(g.items[idx], idx, g.items.length)}
+          </div>
+        );
+      })}
       {addBar}
       {nav}
     </div>

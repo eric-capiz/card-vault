@@ -19,7 +19,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (body.move) {
     await swapOrder(
       PageItem as never,
-      { pageId: item.pageId, userId: session.userId },
+      { pageId: item.pageId, userId: session.userId, type: item.type },
       String(item._id),
       body.move,
     );
