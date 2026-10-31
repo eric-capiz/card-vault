@@ -52,10 +52,6 @@ export default async function Home() {
             those, and on every page: notes, images, files — plus a highlighter
             for what matters most.
           </p>
-          <div className="row">
-            <Link href="/login" className="btn btn-primary">Log in</Link>
-            <Link href="/signup" className="btn">Sign up</Link>
-          </div>
         </div>
         <FeatureStrip />
       </div>
