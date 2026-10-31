@@ -173,7 +173,7 @@ export function PageEditor({
     }
   }
 
-  async function addImage(file: File) {
+  async function addImage(file: File): Promise<boolean> {
     try {
       const dataUrl = await compressImage(file);
       await api("/api/items", {
@@ -188,9 +188,37 @@ export function PageEditor({
         }),
       });
       await refresh();
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not add image.");
+      return false;
     }
+  }
+
+  async function handlePaste(e: React.ClipboardEvent) {
+    const dt = e.clipboardData;
+    const files: File[] = [];
+    for (const f of Array.from(dt.files)) {
+      if (f.type.startsWith("image/")) files.push(f);
+    }
+    if (files.length === 0) {
+      for (const item of Array.from(dt.items)) {
+        if (item.kind === "file" && item.type.startsWith("image/")) {
+          const f = item.getAsFile();
+          if (f) files.push(f);
+        }
+      }
+    }
+    // No image on the clipboard: leave text pastes alone (notes, title, tags).
+    if (files.length === 0) return;
+    // Don't let the browser drop a blob-URL image into a note (it wouldn't
+    // survive a reload). Upload it as a real image block instead.
+    e.preventDefault();
+    let ok = false;
+    for (const f of files) {
+      if (await addImage(f)) ok = true;
+    }
+    if (ok) setSaved("Image pasted.");
   }
 
   async function addFile(file: File) {
@@ -274,7 +302,7 @@ export function PageEditor({
   }
 
   return (
-    <div className="stack">
+    <div className="stack" onPaste={handlePaste}>
       <div className="muted">
         <Link href={`/notebooks/${notebookId}#chapter-${chapterId}`}>{notebookTitle}</Link> · {chapterTitle}
       </div>
@@ -370,7 +398,7 @@ export function PageEditor({
             }}
           />
         </label>
-        <span className="muted">Files up to 10 MB. Images are compressed automatically.</span>
+        <span className="muted">Files up to 10 MB. Images are compressed automatically. Tip: paste an image straight from Snipping Tool with Ctrl+V.</span>
       </div>
 
       {items.length === 0 && (
