@@ -153,3 +153,12 @@ h3 { font-size: 16px; margin: 0; color: #f5eed6; }
   font-size: 13px; font-weight: 800; color: #fff;
   text-shadow: 0 1px 2px rgba(0,0,0,.6);
 }
+.carousel-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.carousel-tab {
+  width: 36px; height: 30px; border: none; border-radius: 6px; cursor: pointer;
+  font-size: 13px; font-weight: 800; color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,.6); opacity: .55;
+}
+.carousel-tab.active { opacity: 1; box-shadow: 0 0 0 2px #D4AF37; }
+.carousel-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.btn:disabled { opacity: .4; cursor: default; }

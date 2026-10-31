@@ -41,13 +41,25 @@ export function PageEditor({
   page,
   notebookId,
   notebookTitle,
+  chapterId,
   chapterTitle,
+  prevPage,
+  nextPage,
+  pagePosition,
+  chapterPageCount,
+  chapterCount,
   initialItems,
 }: {
   page: { _id: string; title: string };
   notebookId: string;
   notebookTitle: string;
+  chapterId: string;
   chapterTitle: string;
+  prevPage: { id: string; title: string } | null;
+  nextPage: { id: string; title: string } | null;
+  pagePosition: number;
+  chapterPageCount: number;
+  chapterCount: number;
   initialItems: ItemT[];
 }) {
   const router = useRouter();
@@ -55,7 +67,56 @@ export function PageEditor({
   const [items, setItems] = useState(initialItems);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState("");
+  const [creatingChapter, setCreatingChapter] = useState(false);
   const noteRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  async function createNextChapter() {
+    setCreatingChapter(true);
+    try {
+      const res = await api("/api/chapters", {
+        method: "POST",
+        body: JSON.stringify({ notebookId, title: `Chapter ${chapterCount + 1}` }),
+      });
+      router.push(`/notebooks/${notebookId}#chapter-${res.chapter._id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not create chapter.");
+      setCreatingChapter(false);
+    }
+  }
+
+  const nav = (
+    <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
+      {prevPage ? (
+        <Link
+          className="btn"
+          href={`/pages/${prevPage.id}`}
+          style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+        >
+          ← {prevPage.title}
+        </Link>
+      ) : (
+        <button className="btn" disabled>
+          ← Previous
+        </button>
+      )}
+      <span className="muted">
+        {chapterTitle} · Page {pagePosition} of {chapterPageCount}
+      </span>
+      {nextPage ? (
+        <Link
+          className="btn"
+          href={`/pages/${nextPage.id}`}
+          style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+        >
+          {nextPage.title} →
+        </Link>
+      ) : (
+        <button className="btn btn-primary" disabled={creatingChapter} onClick={createNextChapter}>
+          {creatingChapter ? "Creating…" : "+ Next chapter"}
+        </button>
+      )}
+    </div>
+  );
 
   async function refresh() {
     const data = await api(`/api/items?pageId=${page._id}`);
@@ -177,8 +238,9 @@ export function PageEditor({
   return (
     <div className="stack">
       <div className="muted">
-        <Link href={`/notebooks/${notebookId}`}>{notebookTitle}</Link> · {chapterTitle}
+        <Link href={`/notebooks/${notebookId}#chapter-${chapterId}`}>{notebookTitle}</Link> · {chapterTitle}
       </div>
+      {nav}
       <div className="row">
         <input
           className="input"
@@ -314,6 +376,7 @@ export function PageEditor({
           )}
         </div>
       ))}
+      {nav}
     </div>
   );
 }

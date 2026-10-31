@@ -38,6 +38,7 @@ export function NotebookView({
   const [title, setTitle] = useState(notebook.title);
   const [color, setColor] = useState(notebook.color);
   const [chapters, setChapters] = useState(initialChapters);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [pages, setPages] = useState(initialPages);
   const [newChapter, setNewChapter] = useState("");
   const [newPage, setNewPage] = useState<Record<string, string>>({});
@@ -49,6 +50,26 @@ export function NotebookView({
   const [error, setError] = useState("");
   const [saved, setSaved] = useState("");
 
+  const activeChapter = chapters.find((c) => c._id === activeId) ?? chapters[0];
+  const activeIndex = activeChapter
+    ? chapters.findIndex((c) => c._id === activeChapter._id)
+    : -1;
+
+  function selectChapter(id: string) {
+    setActiveId(id);
+    window.history.replaceState(null, "", `#chapter-${id}`);
+  }
+
+  useEffect(() => {
+    const fromHash = () => {
+      const m = window.location.hash.match(/^#chapter-(.+)$/);
+      if (m && chapters.some((c) => c._id === m[1])) setActiveId(m[1]);
+    };
+    fromHash();
+    window.addEventListener("hashchange", fromHash);
+    return () => window.removeEventListener("hashchange", fromHash);
+  }, [chapters]);
+
   async function refresh() {
     const ch = await api(`/api/chapters?notebookId=${notebook._id}`);
     setChapters(ch.chapters);
@@ -58,6 +79,7 @@ export function NotebookView({
       grouped[c._id] = pg.pages;
     }
     setPages(grouped);
+    return ch.chapters as ChapterT[];
   }
 
   useEffect(() => {
@@ -91,12 +113,13 @@ export function NotebookView({
   async function addChapter(e: React.FormEvent) {
     e.preventDefault();
     if (!newChapter.trim()) return;
-    await api("/api/chapters", {
+    const res = await api("/api/chapters", {
       method: "POST",
       body: JSON.stringify({ notebookId: notebook._id, title: newChapter }),
     });
     setNewChapter("");
     await refresh();
+    if (res.chapter?._id) selectChapter(res.chapter._id);
   }
 
   async function addPage(e: React.FormEvent, chapterId: string) {
@@ -169,7 +192,49 @@ export function NotebookView({
       {chapters.length === 0 && (
         <p className="muted">No chapters yet. Add your first chapter above.</p>
       )}
-      {chapters.map((ch, i) => (
+      {chapters.length > 0 && (
+        <>
+          <div className="carousel-tabs">
+            {chapters.map((ch, i) => (
+              <button
+                key={ch._id}
+                type="button"
+                className={`carousel-tab${activeChapter && ch._id === activeChapter._id ? " active" : ""}`}
+                style={{ backgroundColor: TAB_COLORS[i % TAB_COLORS.length] }}
+                onClick={() => selectChapter(ch._id)}
+              >
+                {i + 1}
+              </button>
+            ))}
+          </div>
+          <div className="carousel-nav">
+            <button
+              className="btn"
+              disabled={activeIndex <= 0}
+              onClick={() => {
+                if (activeIndex > 0) selectChapter(chapters[activeIndex - 1]._id);
+              }}
+            >
+              ‹ Previous
+            </button>
+            <span className="muted">
+              Chapter {activeIndex + 1} of {chapters.length}
+            </span>
+            <button
+              className="btn"
+              disabled={activeIndex < 0 || activeIndex >= chapters.length - 1}
+              onClick={() => {
+                if (activeIndex >= 0 && activeIndex < chapters.length - 1) {
+                  selectChapter(chapters[activeIndex + 1]._id);
+                }
+              }}
+            >
+              Next ›
+            </button>
+          </div>
+        </>
+      )}
+      {chapters.map((ch, i) => ({ ch, i })).filter(({ ch }) => ch._id === activeChapter?._id).map(({ ch, i }) => (
         <section key={ch._id} id={`chapter-${ch._id}`} className="card stack chapter-card">
           <span
             className="chapter-tab"
@@ -219,8 +284,17 @@ export function NotebookView({
                 className="btn btn-small btn-danger"
                 onClick={async () => {
                   if (!window.confirm(`Delete chapter "${ch.title}" and its pages?`)) return;
+                  const idx = chapters.findIndex((c) => c._id === ch._id);
                   await api(`/api/chapters/${ch._id}`, { method: "DELETE" });
-                  await refresh();
+                  const chs = await refresh();
+                  if (ch._id === activeId) {
+                    const rep = chs[Math.min(idx, chs.length - 1)];
+                    if (rep) selectChapter(rep._id);
+                    else {
+                      setActiveId(null);
+                      window.history.replaceState(null, "", window.location.pathname);
+                    }
+                  }
                 }}
               >
                 Delete
