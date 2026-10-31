@@ -7,6 +7,10 @@ import { Chapter } from "@/models/Chapter";
 import { Page } from "@/models/Page";
 import { normalizeTag } from "@/lib/tags";
 
+// Tags change on every edit, so this page must render fresh per request,
+// never from the build-time prerender.
+export const dynamic = "force-dynamic";
+
 export default async function TagsPage({
   searchParams,
 }: {
