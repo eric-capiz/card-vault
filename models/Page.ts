@@ -18,7 +18,9 @@ export interface IPage extends Document {
 const PageSchema = new Schema<IPage>({
   userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
   chapterId: { type: Schema.Types.ObjectId, ref: "Chapter", required: true, index: true },
-  title: { type: String, required: true, trim: true },
+  // Page titles are optional: a page may hold only notes. Empty string
+  // means untitled; displays fall back to "Untitled page".
+  title: { type: String, default: "", trim: true },
   order: { type: Number, default: 0 },
   tags: { type: [String], default: [] },
   pinned: { type: Boolean, default: false },

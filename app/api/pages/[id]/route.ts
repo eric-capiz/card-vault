@@ -32,9 +32,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
   }
   let changed = false;
   if (body.title !== undefined) {
-    const title = body.title.trim();
-    if (!title) return Response.json({ error: "Title is required." }, { status: 400 });
-    pg.title = title;
+    // Clearing the title is allowed: an empty title means untitled.
+    pg.title = body.title.trim();
     changed = true;
   }
   if (body.tags !== undefined) {

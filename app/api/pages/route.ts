@@ -23,8 +23,8 @@ export async function POST(req: Request) {
     chapterId?: string;
     title?: string;
   };
+  // Page titles are optional: an empty title creates an untitled page.
   const title = (body.title ?? "").trim();
-  if (!title) return Response.json({ error: "Title is required." }, { status: 400 });
   const ch = await getChapter(session.userId, body.chapterId ?? "");
   if (!ch) return Response.json({ error: "Not found." }, { status: 404 });
   await connectDB();

@@ -45,7 +45,7 @@ export async function GET(_req: Request, { params }: Ctx) {
       deletedAt: null,
     }).sort({ order: 1, createdAt: 1 });
     for (const pg of pages) {
-      lines.push(`### ${pg.title}`, "");
+      lines.push(`### ${pg.title || "Untitled page"}`, "");
       const items = await PageItem.find({ pageId: pg._id, userId }).sort({
         order: 1,
         createdAt: 1,

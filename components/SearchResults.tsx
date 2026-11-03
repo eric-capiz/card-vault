@@ -83,7 +83,7 @@ export function SearchResults() {
               <h2>Pages</h2>
               {results.pages.map((p) => (
                 <div key={p._id} className="card">
-                  <Link href={`/pages/${p._id}`}>{p.title}</Link>
+                  <Link href={`/pages/${p._id}`}>{p.title || "Untitled page"}</Link>
                 </div>
               ))}
             </section>

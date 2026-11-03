@@ -107,8 +107,8 @@ export function NotebookView({
 
   async function addPage(e: React.FormEvent, chapterId: string) {
     e.preventDefault();
+    // Page titles are optional: an empty input creates an untitled page.
     const t = (newPage[chapterId] ?? "").trim();
-    if (!t) return;
     await api("/api/pages", {
       method: "POST",
       body: JSON.stringify({ chapterId, title: t }),
@@ -321,7 +321,7 @@ export function NotebookView({
                     </button>
                   </span>
                 ) : (
-                  <Link href={`/pages/${pg._id}`}>{pg.title}</Link>
+                  <Link href={`/pages/${pg._id}`}>{pg.title || "Untitled page"}</Link>
                 )}
                 <span className="row">
                   <button className="btn btn-small" onClick={() => move("pages", pg._id, "up")}>↑</button>
@@ -350,7 +350,7 @@ export function NotebookView({
                   <button
                     className="btn btn-small btn-danger"
                     onClick={async () => {
-                      if (!window.confirm(`Move page "${pg.title}" to Trash? You can restore it from Trash for 30 days.`)) return;
+                      if (!window.confirm(`Move page "${pg.title || "Untitled page"}" to Trash? You can restore it from Trash for 30 days.`)) return;
                       await api(`/api/pages/${pg._id}`, { method: "DELETE" });
                       await refresh();
                     }}
@@ -365,7 +365,7 @@ export function NotebookView({
           <form onSubmit={(e) => addPage(e, ch._id)} className="row">
             <input
               className="input"
-              placeholder="New page title"
+              placeholder="New page title (optional)"
               value={newPage[ch._id] ?? ""}
               onChange={(e) => setNewPage((p) => ({ ...p, [ch._id]: e.target.value }))}
               style={{ flex: 1 }}

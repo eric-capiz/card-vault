@@ -131,7 +131,7 @@ export function PageEditor({
           href={`/pages/${prevPage.id}`}
           style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
         >
-          ← {prevPage.title}
+          ← {prevPage.title || "Untitled page"}
         </Link>
       ) : (
         <button className="btn" disabled>
@@ -147,7 +147,7 @@ export function PageEditor({
           href={`/pages/${nextPage.id}`}
           style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
         >
-          {nextPage.title} →
+          {nextPage.title || "Untitled page"} →
         </Link>
       ) : (
         <button className="btn btn-primary" disabled={creatingChapter} onClick={createNextChapter}>
@@ -442,6 +442,7 @@ export function PageEditor({
           className="input"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          placeholder="Page title (optional)"
           style={{ flex: 1, fontSize: 24, fontWeight: 700 }}
           aria-label="Page title"
         />
@@ -463,7 +464,7 @@ export function PageEditor({
         <button
           className="btn btn-danger"
           onClick={async () => {
-            if (!window.confirm(`Move page "${page.title}" to Trash? You can restore it from Trash for 30 days.`)) return;
+            if (!window.confirm(`Move page "${page.title || "Untitled page"}" to Trash? You can restore it from Trash for 30 days.`)) return;
             await api(`/api/pages/${page._id}`, { method: "DELETE" });
             router.push(`/notebooks/${notebookId}`);
           }}

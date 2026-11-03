@@ -66,7 +66,7 @@ export default async function PrintPage({
           <h2>{ch.chapterTitle}</h2>
           {ch.pages.map((pg) => (
             <section key={pg.pageId}>
-              <h3>{pg.pageTitle}</h3>
+              <h3>{pg.pageTitle || "Untitled page"}</h3>
               {pg.items.map((it) =>
                 it.type === "note" ? (
                   <div key={it.id} dangerouslySetInnerHTML={{ __html: it.text }} />

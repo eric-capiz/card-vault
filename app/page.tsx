@@ -110,7 +110,7 @@ export default async function Home() {
           <div className="stack">
             {pinned.map((p) => (
               <div key={p.id} className="card">
-                <Link href={`/pages/${p.id}`}>{p.title}</Link>
+                <Link href={`/pages/${p.id}`}>{p.title || "Untitled page"}</Link>
                 <span className="muted">
                   {" "}
                   · {p.notebookTitle} · {p.chapterTitle}
