@@ -12,6 +12,19 @@ export const HIGHLIGHT_COLORS = [
   { name: "Blue", value: "#bfdbfe" },
 ];
 
+// Note formatting toolbar: label + execCommand + inline label styling.
+// execCommand is deprecated but remains the standard contentEditable
+// toolbar mechanism and works in every browser; notes already store HTML,
+// so its output (<b>, <i>, <u>, <ul>/<ol>) saves like any other note edit.
+const FORMAT_BUTTONS = [
+  { label: "B", command: "bold", style: { fontWeight: 700 } },
+  { label: "I", command: "italic", style: { fontStyle: "italic" } },
+  { label: "U", command: "underline", style: { textDecoration: "underline" } },
+  { label: "S", command: "strikeThrough", style: { textDecoration: "line-through" } },
+  { label: "• Bullets", command: "insertUnorderedList", style: {} },
+  { label: "1. Numbered", command: "insertOrderedList", style: {} },
+] as const;
+
 type ItemT = {
   _id: string;
   type: "note" | "image" | "file";
@@ -300,6 +313,17 @@ export function PageEditor({
     }
   }
 
+  function format(item: ItemT, command: string) {
+    const el = noteRefs.current[item._id];
+    if (!el) return;
+    // Same selection-preserving pattern as the highlight chips: mousedown
+    // is prevented on the buttons, so the note selection survives the click.
+    // With a selection, the command formats it; with a bare caret, it sets
+    // the format for text typed next (saved on blur like any other edit).
+    document.execCommand(command);
+    void saveNote(item);
+  }
+
   function highlight(item: ItemT, color: string) {
     const el = noteRefs.current[item._id];
     if (!el) return;
@@ -364,6 +388,22 @@ export function PageEditor({
         </div>
         {item.type === "note" && (
           <>
+            <div className="format-toolbar">
+              <span className="muted">Format:</span>
+              {FORMAT_BUTTONS.map((b) => (
+                <button
+                  key={b.command}
+                  type="button"
+                  className="btn btn-small"
+                  style={b.style}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => format(item, b.command)}
+                >
+                  {b.label}
+                </button>
+              ))}
+              <span className="muted">Select text to format it, or tap and type.</span>
+            </div>
             <div className="highlight-toolbar">
               <span className="muted">Highlight:</span>
               {HIGHLIGHT_COLORS.map((c) => (

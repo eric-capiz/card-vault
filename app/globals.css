@@ -123,6 +123,10 @@ mark { color: #1c1a10; }
   display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
   background: #211e18; border-radius: 8px; padding: 8px; margin-bottom: 8px;
 }
+.format-toolbar {
+  display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+  background: #211e18; border-radius: 8px; padding: 8px; margin-bottom: 8px;
+}
 .highlight-chip {
   border: 1px solid #3a3325; border-radius: 6px; padding: 4px 10px;
   cursor: pointer; font-size: 13px; font-weight: 700; color: #1c1a10;

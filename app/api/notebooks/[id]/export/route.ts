@@ -6,7 +6,26 @@ import { Page } from "@/models/Page";
 import { PageItem } from "@/models/PageItem";
 
 function noteToText(html: string): string {
-  const spaced = html
+  // Inline formatting -> Markdown. Underline has no Markdown equivalent,
+  // so <u> text is kept unadorned (its tags are stripped below).
+  let formatted = html
+    .replace(/<(strong|b)>/gi, "**")
+    .replace(/<\/(strong|b)>/gi, "**")
+    .replace(/<(em|i)>/gi, "*")
+    .replace(/<\/(em|i)>/gi, "*")
+    .replace(/<(s|strike|del)>/gi, "~~")
+    .replace(/<\/(s|strike|del)>/gi, "~~");
+  // Lists -> Markdown lines. Non-nested lists only; a nested list flattens
+  // (its inner tags are stripped below, text kept).
+  formatted = formatted.replace(/<(ul|ol)[^>]*>([\s\S]*?)<\/\1>/gi, (_m: string, tag: string, inner: string) => {
+    let n = 0;
+    const items = inner.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_lm: string, li: string) => {
+      n += 1;
+      return (String(tag).toLowerCase() === "ol" ? `${n}. ` : "- ") + String(li).trim() + "\n";
+    });
+    return "\n" + items;
+  });
+  const spaced = formatted
     .replace(/<\/(p|div|li|h\d)>/gi, "\n\n")
     .replace(/<br\s*\/?>/gi, "\n");
   return spaced
