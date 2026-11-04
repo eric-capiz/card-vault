@@ -9,6 +9,8 @@ import {
   deleteNotebookForever,
   deleteChapterForever,
   deletePageForever,
+  deleteSelectedForever,
+  deleteAllOfKindForever,
 } from "@/lib/trash";
 
 type TrashItem = {
@@ -78,18 +80,35 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     kind?: string;
     id?: string;
+    ids?: unknown;
     action?: string;
   };
   const { kind, id, action } = body;
-  if (
-    (kind !== "notebook" && kind !== "chapter" && kind !== "page") ||
-    !id ||
-    (action !== "restore" && action !== "delete")
-  ) {
+  if (kind !== "notebook" && kind !== "chapter" && kind !== "page") {
     return Response.json({ error: "Invalid request." }, { status: 400 });
   }
   await connectDB();
   const userId = session.userId;
+  if (action === "deleteSelected") {
+    const ids = body.ids;
+    if (
+      !Array.isArray(ids) ||
+      ids.length === 0 ||
+      ids.length > 1000 ||
+      !ids.every((x) => typeof x === "string" && x.length > 0)
+    ) {
+      return Response.json({ error: "Invalid request." }, { status: 400 });
+    }
+    const deleted = await deleteSelectedForever(userId, kind, ids);
+    return Response.json({ ok: true, deleted });
+  }
+  if (action === "deleteAll") {
+    const deleted = await deleteAllOfKindForever(userId, kind);
+    return Response.json({ ok: true, deleted });
+  }
+  if (!id || (action !== "restore" && action !== "delete")) {
+    return Response.json({ error: "Invalid request." }, { status: 400 });
+  }
   const model = kind === "notebook" ? Notebook : kind === "chapter" ? Chapter : Page;
   const doc = await model.findOne({ _id: id, userId, deletedAt: { $gt: 0 } });
   if (!doc) return Response.json({ error: "Not found." }, { status: 404 });

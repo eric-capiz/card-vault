@@ -10,6 +10,12 @@ import { PageItem } from "@/models/PageItem";
  * trashed (itself when trashed directly), so restoring a notebook or chapter
  * revives only the items trashed along with it — never items the user
  * trashed individually beforehand.
+ *
+ * Delete-forever is the mirror rule: it only ever touches items currently
+ * in Trash. Deleting a chapter takes only its trashed pages with it, and
+ * deleting a notebook takes only its trashed chapters and trashed pages.
+ * Anything still live — including a page restored out from under a trashed
+ * parent — is never deleted by a Trash action.
  */
 
 export async function trashPage(userId: string, pageId: string) {
@@ -81,33 +87,108 @@ export async function restoreItem(
   }
 }
 
-export async function deletePageForever(userId: string, pageId: string) {
+export async function deletePageForever(userId: string, pageId: string): Promise<boolean> {
   await connectDB();
+  const doc = await Page.findOne({ _id: pageId, userId, deletedAt: { $gt: 0 } }).select("_id");
+  if (!doc) return false;
   await PageItem.deleteMany({ pageId, userId });
   await Page.deleteOne({ _id: pageId, userId });
+  return true;
 }
 
-export async function deleteChapterForever(userId: string, chapterId: string) {
+export async function deleteChapterForever(
+  userId: string,
+  chapterId: string,
+): Promise<boolean> {
   await connectDB();
-  const pages = await Page.find({ chapterId, userId }).select("_id");
+  const doc = await Chapter.findOne({
+    _id: chapterId,
+    userId,
+    deletedAt: { $gt: 0 },
+  }).select("_id");
+  if (!doc) return false;
+  // Only pages currently in Trash go with the chapter — live pages are untouched.
+  const pages = await Page.find({ chapterId, userId, deletedAt: { $gt: 0 } }).select("_id");
   const pageIds = pages.map((p) => p._id);
   if (pageIds.length) await PageItem.deleteMany({ pageId: { $in: pageIds }, userId });
-  await Page.deleteMany({ chapterId, userId });
+  await Page.deleteMany({ chapterId, userId, deletedAt: { $gt: 0 } });
   await Chapter.deleteOne({ _id: chapterId, userId });
+  return true;
 }
 
-export async function deleteNotebookForever(userId: string, notebookId: string) {
+export async function deleteNotebookForever(
+  userId: string,
+  notebookId: string,
+): Promise<boolean> {
   await connectDB();
+  const doc = await Notebook.findOne({
+    _id: notebookId,
+    userId,
+    deletedAt: { $gt: 0 },
+  }).select("_id");
+  if (!doc) return false;
   const chapters = await Chapter.find({ notebookId, userId }).select("_id");
   const chapterIds = chapters.map((c) => c._id);
+  // Only chapters and pages currently in Trash go with the notebook.
+  // A trashed page under a live chapter still counts as in Trash; a live
+  // chapter or page is never touched.
   const pages = chapterIds.length
-    ? await Page.find({ chapterId: { $in: chapterIds }, userId }).select("_id")
+    ? await Page.find({
+        chapterId: { $in: chapterIds },
+        userId,
+        deletedAt: { $gt: 0 },
+      }).select("_id")
     : [];
   const pageIds = pages.map((p) => p._id);
   if (pageIds.length) await PageItem.deleteMany({ pageId: { $in: pageIds }, userId });
-  if (chapterIds.length) await Page.deleteMany({ chapterId: { $in: chapterIds }, userId });
-  await Chapter.deleteMany({ notebookId, userId });
+  if (chapterIds.length)
+    await Page.deleteMany({
+      chapterId: { $in: chapterIds },
+      userId,
+      deletedAt: { $gt: 0 },
+    });
+  await Chapter.deleteMany({ notebookId, userId, deletedAt: { $gt: 0 } });
   await Notebook.deleteOne({ _id: notebookId, userId });
+  return true;
+}
+
+type TrashKind = "notebook" | "chapter" | "page";
+
+const deleteForeverFn = {
+  notebook: deleteNotebookForever,
+  chapter: deleteChapterForever,
+  page: deletePageForever,
+};
+
+/**
+ * Deletes the given items forever, silently skipping anything not currently
+ * in Trash. Returns how many were actually deleted.
+ */
+export async function deleteSelectedForever(
+  userId: string,
+  kind: TrashKind,
+  ids: string[],
+): Promise<number> {
+  let deleted = 0;
+  for (const id of ids) {
+    if (await deleteForeverFn[kind](userId, id)) deleted += 1;
+  }
+  return deleted;
+}
+
+/** Deletes every trashed item of one kind forever. Returns how many were deleted. */
+export async function deleteAllOfKindForever(
+  userId: string,
+  kind: TrashKind,
+): Promise<number> {
+  await connectDB();
+  const model = kind === "notebook" ? Notebook : kind === "chapter" ? Chapter : Page;
+  const docs = await model.find({ userId, deletedAt: { $gt: 0 } }).select("_id");
+  return deleteSelectedForever(
+    userId,
+    kind,
+    docs.map((d) => String(d._id)),
+  );
 }
 
 /** Permanently deletes items trashed more than 30 days ago. Runs on Trash visits. */
