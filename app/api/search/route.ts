@@ -14,7 +14,7 @@ export async function GET(req: Request) {
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const q = (new URL(req.url).searchParams.get("q") ?? "").trim();
   if (!q) {
-    return Response.json({ notebooks: [], chapters: [], pages: [], notes: [] });
+    return Response.json({ notebooks: [], chapters: [], pages: [], notes: [], images: [] });
   }
   const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
   await connectDB();
@@ -23,19 +23,35 @@ export async function GET(req: Request) {
   const chapters = await Chapter.find({ userId, title: re, deletedAt: null }).limit(20);
   const pages = await Page.find({ userId, title: re, deletedAt: null }).limit(20);
   const allNotes = await PageItem.find({ userId, type: "note", text: re }).limit(20);
-  const chapterById = new Map(
-    (await Chapter.find({ userId, _id: { $in: pages.map((p) => p.chapterId) }, deletedAt: null })).map(
-      (c) => [String(c._id), c],
-    ),
-  );
+  const allImages = await PageItem.find({ userId, type: "image", ocrText: re }).limit(20);
   const pageById = new Map(
-    (await Page.find({ userId, _id: { $in: allNotes.map((n) => n.pageId) }, deletedAt: null })).map((p) => [
-      String(p._id),
-      p,
-    ]),
+    (
+      await Page.find({
+        userId,
+        _id: {
+          $in: [...allNotes.map((n) => n.pageId), ...allImages.map((i) => i.pageId)],
+        },
+        deletedAt: null,
+      })
+    ).map((p) => [String(p._id), p]),
+  );
+  const chapterById = new Map(
+    (
+      await Chapter.find({
+        userId,
+        _id: {
+          $in: [
+            ...pages.map((p) => p.chapterId),
+            ...[...pageById.values()].map((p) => p.chapterId),
+          ],
+        },
+        deletedAt: null,
+      })
+    ).map((c) => [String(c._id), c]),
   );
   // Notes on trashed pages stay hidden: their pages are absent from pageById.
   const notes = allNotes.filter((n) => pageById.has(String(n.pageId)));
+  const images = allImages.filter((i) => pageById.has(String(i.pageId)));
   return Response.json({
     notebooks: notebooks.map((n) => ({ _id: String(n._id), title: n.title, color: n.color })),
     chapters: chapters.map((c) => ({
@@ -65,6 +81,23 @@ export async function GET(req: Request) {
         _id: String(n._id),
         snippet,
         pageId: String(n.pageId),
+        pageTitle: pg ? pg.title : "",
+        notebookId: ch ? String(ch.notebookId) : "",
+      };
+    }),
+    images: images.map((img) => {
+      const pg = pageById.get(String(img.pageId));
+      const ch = pg ? chapterById.get(String(pg.chapterId)) : undefined;
+      const plain = img.ocrText ?? "";
+      const idx = plain.toLowerCase().indexOf(q.toLowerCase());
+      const snippet =
+        idx >= 0
+          ? plain.slice(Math.max(0, idx - 40), idx + 120)
+          : plain.slice(0, 120);
+      return {
+        _id: String(img._id),
+        snippet,
+        pageId: String(img.pageId),
         pageTitle: pg ? pg.title : "",
         notebookId: ch ? String(ch.notebookId) : "",
       };

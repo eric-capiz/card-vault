@@ -121,6 +121,23 @@ function dataUrlBytes(dataUrl: string): number {
   return Math.floor((base64.length * 3) / 4);
 }
 
+// OCRs one image block in the background and saves the hidden text for
+// search. Returns silently on any failure so the image is picked up by the
+// backfill on the Search page instead.
+async function indexImageText(itemId: string, dataUrl: string): Promise<void> {
+  try {
+    const { extractImageText } = await import("@/lib/ocr");
+    const text = await extractImageText(dataUrl);
+    if (text === null) return;
+    await api(`/api/items/${itemId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ ocrText: text, ocrDone: true }),
+    });
+  } catch {
+    // Leave the image unindexed; the backfill retries it later.
+  }
+}
+
 export function PageEditor({
   page,
   notebookId,
@@ -316,7 +333,7 @@ export function PageEditor({
   async function addImage(file: File): Promise<boolean> {
     try {
       const dataUrl = await compressImage(file);
-      await api("/api/items", {
+      const res = await api("/api/items", {
         method: "POST",
         body: JSON.stringify({
           pageId: page._id,
@@ -328,6 +345,11 @@ export function PageEditor({
         }),
       });
       await refresh();
+      // Read the screenshot's text in the background so the search field
+      // can match words inside it. The image is already saved — this never
+      // blocks the editor, and a failed read just leaves the image for the
+      // backfill on the Search page.
+      void indexImageText(res.item._id, dataUrl);
       return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not add image.");

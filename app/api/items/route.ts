@@ -30,6 +30,8 @@ export async function POST(req: Request) {
     fileName?: string;
     mimeType?: string;
     size?: number;
+    ocrText?: string;
+    ocrDone?: boolean;
   };
   if (body.type !== "note" && body.type !== "image" && body.type !== "file") {
     return Response.json({ error: "Invalid block type." }, { status: 400 });
@@ -57,6 +59,8 @@ export async function POST(req: Request) {
     fileName: body.fileName ?? "",
     mimeType: body.mimeType ?? "",
     size: body.size ?? 0,
+    ocrText: body.ocrText ?? "",
+    ocrDone: body.ocrDone ?? false,
   });
   return Response.json({ item: toPlain(doc) }, { status: 201 });
 }

@@ -14,6 +14,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (!item) return Response.json({ error: "Not found." }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as {
     text?: string;
+    ocrText?: string;
+    ocrDone?: boolean;
     move?: "up" | "down";
   };
   if (body.move) {
@@ -28,6 +30,11 @@ export async function PATCH(req: Request, { params }: Ctx) {
   }
   if (body.text !== undefined) {
     item.text = body.text;
+    await item.save();
+  }
+  if (body.ocrText !== undefined || body.ocrDone !== undefined) {
+    if (body.ocrText !== undefined) item.ocrText = body.ocrText;
+    if (body.ocrDone !== undefined) item.ocrDone = body.ocrDone;
     await item.save();
   }
   return Response.json({ item: toPlain(item) });

@@ -20,6 +20,13 @@ export interface IPageItem extends Document {
   fileName: string;
   mimeType: string;
   size: number;
+  /**
+   * Hidden text read out of an image block by OCR (never shown in the UI).
+   * Exists only so the search field can match words inside screenshots.
+   */
+  ocrText: string;
+  /** True once OCR has run for this image (even when it found no text). */
+  ocrDone: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -34,6 +41,8 @@ const PageItemSchema = new Schema<IPageItem>({
   fileName: { type: String, default: "" },
   mimeType: { type: String, default: "" },
   size: { type: Number, default: 0 },
+  ocrText: { type: String, default: "" },
+  ocrDone: { type: Boolean, default: false },
   createdAt: { type: Number, default: Date.now },
   updatedAt: { type: Number, default: Date.now },
 });
