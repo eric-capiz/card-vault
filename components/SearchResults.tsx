@@ -158,7 +158,7 @@ export function SearchResults() {
               <h2>Chapters</h2>
               {results.chapters.map((c) => (
                 <div key={c._id} className="card">
-                  <Link href={`/notebooks/${c.notebookId}`}>{c.title}</Link>
+                  <Link href={`/notebooks/${c.notebookId}#chapter-${c._id}`}>{c.title}</Link>
                 </div>
               ))}
             </section>
@@ -178,7 +178,7 @@ export function SearchResults() {
               <h2>Notes</h2>
               {results.notes.map((n) => (
                 <div key={n._id} className="card">
-                  <Link href={`/pages/${n.pageId}`}>{n.pageTitle || "Untitled page"}</Link>
+                  <Link href={`/pages/${n.pageId}#block-${n._id}`}>{n.pageTitle || "Untitled page"}</Link>
                   <div className="muted">{n.snippet}</div>
                 </div>
               ))}
@@ -189,7 +189,7 @@ export function SearchResults() {
               <h2>Images</h2>
               {results.images.map((img) => (
                 <div key={img._id} className="card">
-                  <Link href={`/pages/${img.pageId}`}>{img.pageTitle || "Untitled page"}</Link>
+                  <Link href={`/pages/${img.pageId}#block-${img._id}`}>{img.pageTitle || "Untitled page"}</Link>
                   <div className="muted">{img.snippet}</div>
                   <div className="muted">Found in a screenshot on this page.</div>
                 </div>

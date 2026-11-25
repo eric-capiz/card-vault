@@ -198,6 +198,29 @@ export function PageEditor({
     pendingRestore.current = {};
   }, [items]);
 
+  // Jump straight to the exact block when the page is opened from a search
+  // result (/pages/<id>#block-<itemId>): pick the right slide inside its
+  // group, then scroll it into view. The :target outline in globals.css
+  // marks the block once it is in view.
+  useEffect(() => {
+    const jumpToHash = () => {
+      const m = window.location.hash.match(/^#block-(.+)$/);
+      if (!m) return;
+      const target = items.find((it) => it._id === m[1]);
+      if (!target) return;
+      const sameType = items.filter((it) => it.type === target.type);
+      const idx = sameType.findIndex((it) => it._id === target._id);
+      if (idx >= 0) setSlide((s) => ({ ...s, [target.type]: idx }));
+      // The slide change re-renders before this fires, so the block exists.
+      setTimeout(() => {
+        document.getElementById(`block-${target._id}`)?.scrollIntoView({ block: "start" });
+      }, 50);
+    };
+    jumpToHash();
+    window.addEventListener("hashchange", jumpToHash);
+    return () => window.removeEventListener("hashchange", jumpToHash);
+  }, [items]);
+
   async function saveTags(next: string[]) {
     try {
       const res = await api(`/api/pages/${page._id}`, {
@@ -568,7 +591,7 @@ export function PageEditor({
     const canUndo = !!histEntry && histEntry.idx > 0;
     const canRedo = !!histEntry && histEntry.idx < histEntry.hist.length - 1;
     return (
-      <div className="block">
+      <div className="block" id={`block-${item._id}`}>
         <div className="block-actions">
           <button
             className="btn btn-small"

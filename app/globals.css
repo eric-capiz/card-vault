@@ -107,8 +107,10 @@ h3 { font-size: 16px; margin: 0; color: #f5eed6; }
 
 .block {
   background: #171512; border: 1px solid #2a261e; border-radius: 14px; padding: 16px;
-  color: #f2ead8; box-shadow: 0 10px 30px rgba(0,0,0,.5);
+  color: #f2ead8; box-shadow: 0 10px 30px rgba(0,0,0,.5); scroll-margin-top: 70px;
 }
+/* Jump target from a search result: outline the exact block that matched. */
+.block:target { outline: 3px solid #d4af37; outline-offset: 4px; }
 .block-actions { display: flex; gap: 6px; justify-content: flex-end; margin-bottom: 8px; }
 .note-editor {
   min-height: 80px; outline: none; white-space: pre-wrap; word-break: break-word;
